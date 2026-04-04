@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Doctor Dashboard — NeuroScan{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-header">
+    <h1>Doctor Dashboard</h1>
+    <p>Review pending MRI predictions and submit your assessment</p>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-icon warning">📋</div>
+        <div class="stat-info">
+            <div class="stat-label">Pending Cases</div>
+            <div class="stat-value">{{ cases | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon danger">⚠️</div>
+        <div class="stat-info">
+            <div class="stat-label">Clot Detected</div>
+            <div class="stat-value">{{ cases | selectattr('result', 'equalto', 'clot') | list | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">✅</div>
+        <div class="stat-info">
+            <div class="stat-label">No Clot Cases</div>
+            <div class="stat-value">{{ cases | selectattr('result', 'equalto', 'no clot') | list | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon primary">🔬</div>
+        <div class="stat-info">
+            <div class="stat-label">Models Active</div>
+            <div class="stat-value">6+</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Pending Review Cases</h3>
+        <span class="badge badge-pending">{{ cases | length }} awaiting</span>
+    </div>
+
+    {% if cases %}
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+
+    <div class="table-wrapper">
+        <table class="data-table" id="doctorTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Patient</th>
+                    <th>AI Result</th>
+                    <th>Model</th>
+                    <th>Uploaded At</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in cases %}
+                <tr class="{{ 'row-critical' if c.result == 'clot' else '' }}">
+                    <td class="row-num"></td>
+                    <td style="font-size:0.875rem; font-weight:500; color:var(--txt-primary);">{{ c.patient_email }}</td>
+                    <td>
+                        <span class="badge {{ 'badge-clot' if c.result == 'clot' else 'badge-normal' }}">
+                            {{ '⚠' if c.result == 'clot' else '✓' }} {{ c.result_display }}
+                        </span>
+                    </td>
+                    <td style="font-size:0.82rem; color:var(--txt-secondary); font-weight:500;">
+                        {{ c.model_used | upper if c.model_used else 'N/A' }}
+                    </td>
+                    <td style="color:var(--txt-muted); font-size:0.85rem;">
+                        {{ c.created_at.strftime("%d %b %Y, %H:%M") if c.created_at else "N/A" }}
+                    </td>
+                    <td>
+                        {# Store all data as data attributes on the button — no nested modals #}
+                        <button class="btn btn-outline btn-sm review-btn"
+                            data-id="{{ c.id }}"
+                            data-patient="{{ c.patient_email }}"
+                            data-result="{{ c.result_display }}"
+                            data-result-type="{{ c.result }}"
+                            data-model="{{ c.model_used | upper if c.model_used else 'N/A' }}"
+                            data-uploaded="{{ c.created_at.strftime('%d %b %Y, %H:%M') if c.created_at else 'N/A' }}"
+                            data-orig="{{ (c.explainability_paths.original if c.explainability_paths else '') or '' }}"
+                            data-heatmap="{{ (c.explainability_paths.gradcam if c.explainability_paths else '') or '' }}"
+                            data-action="{{ url_for('routes.review', prediction_id=c.id) }}">
+                            Review →
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">No pending cases</div>
+        <div class="empty-desc">All cases have been reviewed. Check back later.</div>
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     SINGLE SHARED MODAL — lives outside the table entirely.
+     DataTables cannot interfere with it here.
+     ══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="reviewModal" style="align-items:flex-start; padding-top:5vh;">
+    <div style="background:var(--clr-surface); border-radius:var(--radius-xl); max-width:800px; width:95vw; overflow:hidden; box-shadow:var(--shadow-xl); border:1px solid var(--clr-border); margin:auto;">
+
+        <!-- Header -->
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:1.2rem 1.5rem; border-bottom:1px solid var(--clr-border); background:var(--clr-surface);">
+            <div>
+                <h3 style="font-size:1.05rem; font-weight:600; margin:0; color:var(--txt-primary);">Submit Review</h3>
+                <p id="modal-subtitle" style="font-size:0.8rem; color:var(--txt-muted); margin:0.1rem 0 0;"></p>
+            </div>
+            <button onclick="closeReviewModal()" style="width:30px;height:30px;background:var(--clr-surface-2);border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:1rem;color:var(--txt-muted);display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
+
+        <!-- Scrollable body -->
+        <div style="padding:1.25rem 1.5rem; overflow-y:auto; max-height:78vh;">
+
+            <!-- Metadata strip -->
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); background:var(--clr-surface-2); border-radius:var(--radius-md); border:1px solid var(--clr-border); overflow:hidden; margin-bottom:1.25rem;">
+                <div style="padding:0.75rem 1rem; border-right:1px solid var(--clr-border);">
+                    <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt-muted);margin-bottom:0.3rem;">AI Prediction</div>
+                    <span id="modal-result" class="badge"></span>
+                </div>
+                <div style="padding:0.75rem 1rem; border-right:1px solid var(--clr-border);">
+                    <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt-muted);margin-bottom:0.3rem;">Model</div>
+                    <div id="modal-model" style="font-size:0.875rem;font-weight:600;color:var(--txt-primary);"></div>
+                </div>
+                <div style="padding:0.75rem 1rem;">
+                    <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt-muted);margin-bottom:0.3rem;">Uploaded</div>
+                    <div id="modal-uploaded" style="font-size:0.875rem;color:var(--txt-secondary);"></div>
+                </div>
+            </div>
+
+            <!-- Images -->
+            <div id="modal-images-section" style="margin-bottom:1.25rem;">
+                <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt-muted);margin-bottom:0.75rem;">MRI Scan &amp; Explainability Comparison</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+
+                    <!-- Original MRI -->
+                    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--clr-border);">
+                        <div style="padding:0.5rem 0.75rem;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;justify-content:space-between;">
+                            <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--txt-muted);">Original MRI</span>
+                            <a id="modal-orig-dl" href="#" download style="font-size:0.75rem;color:var(--clr-primary);font-weight:600;text-decoration:none;">⬇ Save</a>
+                        </div>
+                        <div id="modal-orig-container" style="height:260px;background:#000;display:flex;align-items:center;justify-content:center;">
+                            <img id="modal-orig-img" src="" alt="Original MRI"
+                                 style="max-width:100%;max-height:260px;object-fit:contain;cursor:zoom-in;display:none;"
+                                 title="Click to open full size">
+                            <span id="modal-orig-empty" style="color:#666;font-size:0.85rem;display:none;">Not available</span>
+                        </div>
+                    </div>
+
+                    <!-- Heatmap -->
+                    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--clr-border);">
+                        <div style="padding:0.5rem 0.75rem;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;justify-content:space-between;">
+                            <span id="modal-heatmap-label" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--txt-muted);"></span>
+                            <a id="modal-heatmap-dl" href="#" download style="font-size:0.75rem;color:var(--clr-primary);font-weight:600;text-decoration:none;">⬇ Save</a>
+                        </div>
+                        <div id="modal-heatmap-container" style="height:260px;background:#000;display:flex;align-items:center;justify-content:center;">
+                            <img id="modal-heatmap-img" src="" alt="Heatmap"
+                                 style="max-width:100%;max-height:260px;object-fit:contain;cursor:zoom-in;display:none;"
+                                 title="Click to open full size">
+                            <span id="modal-heatmap-empty" style="color:#666;font-size:0.85rem;display:none;">Not available</span>
+                        </div>
+                    </div>
+
+                </div>
+                <!-- Legend -->
+                <div style="display:flex;align-items:center;gap:6px;margin-top:0.6rem;font-size:0.78rem;color:var(--txt-muted);">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#ff4444,#ff8800);flex-shrink:0;"></span>
+                    Red/warm = high activation · Blue/cool = low activation · Click images to open full size
+                </div>
+            </div>
+
+            <!-- No images fallback -->
+            <div id="modal-no-images" style="padding:1.25rem;background:var(--clr-surface-2);border-radius:var(--radius-md);margin-bottom:1.25rem;text-align:center;border:1px solid var(--clr-border);display:none;">
+                <div style="font-size:1.5rem;margin-bottom:0.4rem;opacity:0.4;">🖼️</div>
+                <span style="font-size:0.85rem;color:var(--txt-muted);">No MRI images saved for this prediction.</span>
+            </div>
+
+            <!-- Review form -->
+            <div style="border-top:1px solid var(--clr-border);padding-top:1.1rem;">
+                <form id="reviewForm" method="POST">
+                    <div class="form-group" style="margin-bottom:0.9rem;">
+                        <label class="form-label">Clinical remarks <span style="color:var(--txt-muted);font-weight:400;">(optional)</span></label>
+                        <textarea name="notes" class="form-control" id="modal-notes"
+                                  style="min-height:70px;resize:vertical;"
+                                  placeholder="Document your clinical observations…"></textarea>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <button type="submit" name="decision" value="agree" class="btn btn-success btn-lg">✔ Agree with AI</button>
+                        <button type="submit" name="decision" value="disagree" class="btn btn-danger btn-lg">✖ Disagree</button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+<!-- ══ end shared modal ══ -->
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+<script>
+    $(document).ready(function () {
+        if (document.getElementById('doctorTable')) {
+            $('#doctorTable').DataTable({
+                pageLength: 10,
+                order: [[4, "desc"]],
+                columnDefs: [
+                    { orderable: false, targets: [0, 5] },
+                    { searchable: false, targets: 0 }
+                ],
+                drawCallback: function() {
+                    this.api().column(0, { search: 'applied', order: 'applied' }).nodes().each(function(cell, i) {
+                        cell.innerHTML = i + 1;
+                    });
+                }
+            });
+        }
+    });
+
+    // Open the single shared modal, populate it with data from the clicked button
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.review-btn');
+        if (!btn) return;
+
+        const d = btn.dataset;
+        const isClot = d.resultType === 'clot';
+
+        // Subtitle
+        document.getElementById('modal-subtitle').textContent = 'Patient: ' + d.patient;
+
+        // Result badge
+        const badge = document.getElementById('modal-result');
+        badge.textContent = d.result;
+        badge.className = 'badge ' + (isClot ? 'badge-clot' : 'badge-normal');
+
+        // Metadata
+        document.getElementById('modal-model').textContent    = d.model;
+        document.getElementById('modal-uploaded').textContent = d.uploaded;
+
+        // Heatmap label
+        const modelLower = d.model.toLowerCase();
+        let heatmapLabel = 'Grad-CAM Heatmap';
+        if (modelLower === 'vit')      heatmapLabel = 'Attention Rollout';
+        if (modelLower === 'ensemble') heatmapLabel = 'Ensemble CAM';
+        document.getElementById('modal-heatmap-label').textContent = heatmapLabel;
+
+        // Images
+        const origImg    = document.getElementById('modal-orig-img');
+        const origEmpty  = document.getElementById('modal-orig-empty');
+        const origDl     = document.getElementById('modal-orig-dl');
+        const htmpImg    = document.getElementById('modal-heatmap-img');
+        const htmpEmpty  = document.getElementById('modal-heatmap-empty');
+        const htmpDl     = document.getElementById('modal-heatmap-dl');
+        const imagesSection = document.getElementById('modal-images-section');
+        const noImages      = document.getElementById('modal-no-images');
+
+        const hasOrig    = d.orig    && d.orig    !== '';
+        const hasHeatmap = d.heatmap && d.heatmap !== '';
+
+        if (hasOrig || hasHeatmap) {
+            imagesSection.style.display = 'block';
+            noImages.style.display      = 'none';
+
+            if (hasOrig) {
+                origImg.src  = d.orig;
+                origImg.onclick = function() { window.open(d.orig, '_blank'); };
+                origImg.style.display  = '';
+                origEmpty.style.display = 'none';
+                origDl.href  = d.orig;
+                origDl.style.display = '';
+            } else {
+                origImg.style.display  = 'none';
+                origEmpty.style.display = '';
+                origDl.style.display   = 'none';
+            }
+
+            if (hasHeatmap) {
+                htmpImg.src  = d.heatmap;
+                htmpImg.onclick = function() { window.open(d.heatmap, '_blank'); };
+                htmpImg.style.display  = '';
+                htmpEmpty.style.display = 'none';
+                htmpDl.href  = d.heatmap;
+                htmpDl.style.display = '';
+            } else {
+                htmpImg.style.display  = 'none';
+                htmpEmpty.style.display = '';
+                htmpDl.style.display   = 'none';
+            }
+        } else {
+            imagesSection.style.display = 'none';
+            noImages.style.display      = 'block';
+        }
+
+        // Form action
+        document.getElementById('reviewForm').action = d.action;
+
+        // Clear previous notes
+        document.getElementById('modal-notes').value = '';
+
+        // Show modal
+        document.getElementById('reviewModal').classList.add('open');
+    });
+
+    function closeReviewModal() {
+        document.getElementById('reviewModal').classList.remove('open');
+    }
+
+    // Close on backdrop click
+    document.getElementById('reviewModal').addEventListener('click', function(e) {
+        if (e.target === this) closeReviewModal();
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeReviewModal();
+    });
+</script>
+{% endblock %}

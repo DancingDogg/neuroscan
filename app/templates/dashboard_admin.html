@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — NeuroScan{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-header">
+    <h1>Admin Dashboard</h1>
+    <p>Manage user roles and monitor system activity logs</p>
+</div>
+
+<!-- Stats -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">👥</div>
+        <div class="stat-info">
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value">{{ users | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">👨‍⚕️</div>
+        <div class="stat-info">
+            <div class="stat-label">Doctors</div>
+            <div class="stat-value">{{ users | selectattr('role', 'equalto', 'doctor') | list | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">🧑</div>
+        <div class="stat-info">
+            <div class="stat-label">Patients</div>
+            <div class="stat-value">{{ users | selectattr('role', 'equalto', 'patient') | list | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon danger">📋</div>
+        <div class="stat-info">
+            <div class="stat-label">Audit Logs</div>
+            <div class="stat-value">{{ logs | length }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Users table -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">User Management</h3>
+        <span class="badge badge-patient">{{ users | length }} users</span>
+    </div>
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+
+    <div class="table-wrapper">
+        <table class="data-table" id="usersTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Email</th>
+                    <th>Current Role</th>
+                    <th>Created At</th>
+                    <th>Update Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <!-- ISSUE 4 FIX: Don't use loop.index for the # column.
+                         Instead use an empty cell and let DataTables' rowReorder
+                         or simply disable sorting on column 0.
+                         We set the actual number via DataTables drawCallback below. -->
+                    <td class="row-num"></td>
+                    <td>
+                        <span style="font-weight: 500; font-size: 0.875rem;">{{ u.email }}</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ u.role }}">{{ u.role | capitalize }}</span>
+                    </td>
+                    <td style="color: var(--txt-muted); font-size: 0.85rem;">
+                        {{ u.created_at.strftime("%d %b %Y") if u.created_at else "N/A" }}
+                    </td>
+                    <td>
+                        <form action="{{ url_for('routes.update_role', user_id=u.id) }}"
+                              method="POST"
+                              style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select name="role" class="form-control"
+                                    style="width: auto; min-width: 120px; padding: 0.3rem 0.6rem; font-size: 0.85rem;">
+                                <option value="patient"  {% if u.role == 'patient'  %}selected{% endif %}>Patient</option>
+                                <option value="doctor"   {% if u.role == 'doctor'   %}selected{% endif %}>Doctor</option>
+                                <option value="admin"    {% if u.role == 'admin'    %}selected{% endif %}>Admin</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary btn-sm">Update</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Audit logs -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Audit Logs</h3>
+        <span style="font-size: 0.82rem; color: var(--txt-muted);">Most recent first</span>
+    </div>
+
+    {% if logs %}
+    <div class="table-wrapper">
+        <table class="data-table" id="logsTable">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in logs %}
+                <tr>
+                    <td style="font-size: 0.82rem; color: var(--txt-secondary); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ l.user_id }}
+                    </td>
+                    <td><span class="badge badge-{{ l.role }}">{{ l.role | capitalize }}</span></td>
+                    <td>
+                        <span style="font-size: 0.82rem; font-weight: 500; color: var(--txt-primary);">
+                            {{ l.action }}
+                        </span>
+                    </td>
+                    <td style="font-size: 0.8rem; color: var(--txt-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ l.details }}
+                    </td>
+                    <td style="color: var(--txt-muted); font-size: 0.82rem; white-space: nowrap;">
+                        {{ l.created_at.strftime("%d %b %Y, %H:%M") if l.created_at else "N/A" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">No logs yet</div>
+        <div class="empty-desc">System activity will appear here once users start interacting.</div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // ISSUE 4 FIX: disable sorting on the # column (index 0),
+        // and use drawCallback to renumber rows sequentially after every sort/filter/page change.
+        // This way, row numbers always match what's visually shown.
+        var usersTable = $('#usersTable').DataTable({
+            pageLength: 10,
+            order: [[3, "asc"]],   // default sort by Created At ascending
+            columnDefs: [
+                { orderable: false, targets: [0, 4] },  // # and Update Role not sortable
+                { searchable: false, targets: 0 }        // don't search the # column
+            ],
+            drawCallback: function() {
+                // Renumber visible rows sequentially
+                this.api().column(0, { search: 'applied', order: 'applied' }).nodes().each(function(cell, i) {
+                    cell.innerHTML = i + 1;
+                });
+            }
+        });
+
+        if (document.getElementById('logsTable')) {
+            $('#logsTable').DataTable({
+                pageLength: 10,
+                order: [[4, "desc"]]
+            });
+        }
+    });
+</script>
+{% endblock %}

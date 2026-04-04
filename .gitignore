@@ -1,0 +1,40 @@
+# ── Secrets — NEVER commit these ──
+.env
+firebase-key.json
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.pyc
+
+# ── Virtual environment ──
+.venv/
+venv/
+env/
+ENV/
+
+# ── Flask ──
+instance/
+*.db
+
+# ── ML model weights — too large for GitHub (each file is 100MB+) ──
+app/ml/model_files/*.pth
+app/ml/model_files/*.pkl
+
+# ── User uploads — patient MRI data, do not commit ──
+app/static/uploads/
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── VS Code ──
+.vscode/
+*.code-workspace
+
+# ── Training data — too large ──
+crop_v2/

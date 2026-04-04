@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — NeuroScan</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="auth-layout">
+    <div class="auth-panel">
+
+        <div class="auth-logo">
+            <div class="auth-logo-icon">🧠</div>
+            <span>NeuroScan</span>
+        </div>
+
+        <div class="auth-card">
+            <h1 class="auth-heading">Welcome back</h1>
+            <p class="auth-subheading">Sign in to access the stroke detection system</p>
+
+            <div id="alertBox"></div>
+
+            <!-- Google Sign-in -->
+            <button id="googleBtn" type="button" class="btn btn-outline w-full"
+                    style="gap:10px; margin-bottom:1rem; font-size:0.9rem; justify-content:center;">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18L12.048 13.56c-.806.54-1.836.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+            </button>
+
+            <!-- Divider -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;">
+                <div style="flex:1;height:1px;background:var(--clr-border);"></div>
+                <span style="font-size:0.78rem;color:var(--txt-muted);white-space:nowrap;">or sign in with email</span>
+                <div style="flex:1;height:1px;background:var(--clr-border);"></div>
+            </div>
+
+            <!-- Email / password -->
+            <form id="loginForm" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="email">Email address</label>
+                    <input class="form-control" type="email" id="email"
+                           placeholder="you@hospital.com" autocomplete="email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input class="form-control" type="password" id="password"
+                           placeholder="Enter your password" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-full" style="margin-top:0.5rem;">
+                    Sign in →
+                </button>
+            </form>
+        </div>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="{{ url_for('routes.register') }}">Create one</a>
+        </div>
+
+    </div>
+</div>
+
+<!-- Role picker modal — shown when Google user is new (no Firestore profile yet) -->
+<div id="roleModal" style="display:none;position:fixed;inset:0;background:rgba(10,20,40,0.55);
+     backdrop-filter:blur(4px);z-index:400;align-items:center;justify-content:center;">
+    <div style="background:var(--clr-surface);border-radius:var(--radius-xl);padding:2rem;
+                max-width:380px;width:92%;box-shadow:var(--shadow-xl);border:1px solid var(--clr-border);">
+        <h3 style="font-size:1.05rem;font-weight:600;margin-bottom:0.3rem;color:var(--txt-primary);">One last step</h3>
+        <p style="font-size:0.875rem;color:var(--txt-muted);margin-bottom:1.5rem;">How will you use NeuroScan?</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+            <button onclick="completeGoogleSignup('patient')" class="btn btn-outline"
+                    style="flex-direction:column;padding:1rem;gap:6px;height:auto;">
+                <span style="font-size:1.6rem;">🧑</span>
+                <span style="font-weight:600;">Patient</span>
+                <span style="font-size:0.73rem;color:var(--txt-muted);font-weight:400;">Upload MRI scans</span>
+            </button>
+            <button onclick="completeGoogleSignup('doctor')" class="btn btn-outline"
+                    style="flex-direction:column;padding:1rem;gap:6px;height:auto;">
+                <span style="font-size:1.6rem;">👨‍⚕️</span>
+                <span style="font-weight:600;">Doctor</span>
+                <span style="font-size:0.73rem;color:var(--txt-muted);font-weight:400;">Review predictions</span>
+            </button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--txt-muted);text-align:center;">Role can be changed later by an admin.</p>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+<script>
+    const firebaseConfig = {
+        apiKey: "{{ api_key }}",
+        authDomain: "{{ auth_domain }}",
+        projectId: "{{ project_id }}"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+    // Blocked/fake email domains
+    const BLOCKED_DOMAINS = new Set([
+        'example.comm','example.net','example.org',
+        'test.com','test.net','fake.com',
+        'mailinator.com','guerrillamail.com','tempmail.com',
+        'throwaway.email','yopmail.com','sharklasers.com',
+        'trashmail.com','dispostable.com'
+    ]);
+
+    function isBlockedEmail(email) {
+        const domain = (email.split('@')[1] || '').toLowerCase();
+        return BLOCKED_DOMAINS.has(domain);
+    }
+
+    function showAlert(msg, type) {
+        document.getElementById('alertBox').innerHTML =
+            `<div class="alert ${type}" style="margin-bottom:1rem;">
+                <span class="alert-icon">${type === 'danger' ? '✖' : type === 'success' ? '✔' : 'ℹ'}</span>${msg}
+             </div>`;
+    }
+
+    // Helper: send token to Flask session_login
+    async function doSessionLogin(idToken) {
+        return fetch("{{ url_for('routes.session_login') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ idToken })
+        });
+    }
+
+    // ── Email / password sign-in ──
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (isBlockedEmail(email)) {
+            showAlert('Please use a real email address.', 'danger'); return;
+        }
+
+        btn.textContent = 'Signing in…';
+        btn.disabled = true;
+
+        try {
+            const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+            const idToken = await cred.user.getIdToken();
+            const res = await doSessionLogin(idToken);
+            if (res.ok) {
+                window.location.href = "{{ url_for('routes.home') }}";
+            } else {
+                const data = await res.json();
+                showAlert(data.error || 'Login failed.', 'danger');
+                btn.textContent = 'Sign in →';
+                btn.disabled = false;
+            }
+        } catch (err) {
+            showAlert(err.message, 'danger');
+            btn.textContent = 'Sign in →';
+            btn.disabled = false;
+        }
+    });
+
+    // ── Google sign-in ──
+    let pendingGoogleToken = null;
+
+    document.getElementById('googleBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('googleBtn');
+        btn.disabled = true;
+        btn.textContent = 'Opening Google…';
+
+        try {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            const cred = await firebase.auth().signInWithPopup(provider);
+            const idToken = await cred.user.getIdToken();
+
+            // Try logging in first (existing user)
+            const res = await doSessionLogin(idToken);
+
+            if (res.ok) {
+                window.location.href = "{{ url_for('routes.home') }}";
+                return;
+            }
+
+            const data = await res.json();
+            if (data.error === 'User not found in Firestore.') {
+                // New Google user — show role picker
+                pendingGoogleToken = idToken;
+                document.getElementById('roleModal').style.display = 'flex';
+            } else {
+                showAlert(data.error || 'Google sign-in failed.', 'danger');
+            }
+        } catch (err) {
+            showAlert(err.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18L12.048 13.56c-.806.54-1.836.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                </svg>
+                Continue with Google`;
+        }
+    });
+
+    // Called after user picks role in the modal
+    async function completeGoogleSignup(role) {
+        if (!pendingGoogleToken) return;
+        document.getElementById('roleModal').style.display = 'none';
+        showAlert('Setting up your account…', 'info');
+
+        try {
+            const res = await fetch("{{ url_for('routes.session_register') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ idToken: pendingGoogleToken, role })
+            });
+
+            if (res.ok) {
+                const loginRes = await doSessionLogin(pendingGoogleToken);
+                if (loginRes.ok) {
+                    window.location.href = "{{ url_for('routes.home') }}";
+                } else {
+                    showAlert('Account created! Please sign in.', 'success');
+                    setTimeout(() => { window.location.href = "{{ url_for('routes.login') }}"; }, 1500);
+                }
+            } else {
+                const data = await res.json();
+                showAlert(data.error || 'Registration failed.', 'danger');
+            }
+        } catch (err) {
+            showAlert(err.message, 'danger');
+        } finally {
+            pendingGoogleToken = null;
+        }
+    }
+</script>
+</body>
+</html>

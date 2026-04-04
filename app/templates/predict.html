@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}Predict — NeuroScan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>MRI Stroke Prediction</h1>
+    <p>Upload a brain MRI scan and select a model to receive an AI-powered classification with explainability heatmap.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start;">
+
+    <!-- ── Upload form ── -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Upload & Configure</h3>
+                <div class="card-icon blue">🖼️</div>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data" id="predictForm">
+                {{ form.hidden_tag() }}
+
+                <!-- File drop zone -->
+                <div class="form-group">
+                    <label class="form-label">MRI Scan Image</label>
+                    <div class="file-input-wrapper" id="dropzone">
+                        {{ form.file(id="fileInput", accept=".jpg,.jpeg,.png") }}
+                        <div class="file-icon">🧠</div>
+                        <div class="file-label">Drop your MRI scan here</div>
+                        <div class="file-sublabel">or click to browse · JPG, JPEG, PNG</div>
+                        <div class="file-chosen" id="fileChosen" style="display:none;"></div>
+                    </div>
+                </div>
+
+                <!-- Model selector -->
+                <div class="form-group">
+                    <label class="form-label">Select Model</label>
+                    <div class="model-grid">
+                        <div class="model-option">
+                            <input type="radio" name="model" id="m_resnet50" value="resnet50"
+                                   {% if selected_model == 'resnet50' %}checked{% endif %}>
+                            <label for="m_resnet50">
+                                <span class="model-icon">🔵</span>
+                                ResNet50
+                            </label>
+                        </div>
+                        <div class="model-option">
+                            <input type="radio" name="model" id="m_resnet101" value="resnet101"
+                                   {% if selected_model == 'resnet101' %}checked{% endif %}>
+                            <label for="m_resnet101">
+                                <span class="model-icon">🔵</span>
+                                ResNet101
+                            </label>
+                        </div>
+                        <div class="model-option">
+                            <input type="radio" name="model" id="m_dn121" value="densenet121"
+                                   {% if selected_model == 'densenet121' %}checked{% endif %}>
+                            <label for="m_dn121">
+                                <span class="model-icon">🟢</span>
+                                DenseNet121
+                            </label>
+                        </div>
+                        <div class="model-option">
+                            <input type="radio" name="model" id="m_dn169" value="densenet169"
+                                   {% if selected_model == 'densenet169' %}checked{% endif %}>
+                            <label for="m_dn169">
+                                <span class="model-icon">🟢</span>
+                                DenseNet169
+                            </label>
+                        </div>
+                        <div class="model-option">
+                            <input type="radio" name="model" id="m_eff" value="efficientnetb3"
+                                   {% if selected_model == 'efficientnetb3' %}checked{% endif %}>
+                            <label for="m_eff">
+                                <span class="model-icon">🟠</span>
+                                EfficientNet-B3
+                            </label>
+                        </div>
+                        <div class="model-option">
+                            <input type="radio" name="model" id="m_vit" value="vit"
+                                   {% if selected_model == 'vit' %}checked{% endif %}>
+                            <label for="m_vit">
+                                <span class="model-icon">🟣</span>
+                                ViT
+                            </label>
+                        </div>
+                        <div class="model-option" style="grid-column: span 2;">
+                            <input type="radio" name="model" id="m_ens" value="ensemble"
+                                   {% if selected_model == 'ensemble' %}checked{% endif %}>
+                            <label for="m_ens" style="flex-direction: row; justify-content: center;">
+                                <span class="model-icon">⭐</span>
+                                Ensemble
+                                <span class="model-badge">Best</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="btn btn-primary w-full" id="submitBtn">
+                    ⚡ Run Prediction
+                </button>
+            </form>
+        </div>
+
+        <!-- Info box -->
+        <div class="card mt-2" style="border-color: var(--clr-primary-light); background: var(--clr-primary-light);">
+            <p style="font-size: 0.85rem; color: var(--clr-primary-dark); margin: 0;">
+                <strong>ℹ️ Note:</strong> This tool is a research-level prototype and is not a substitute for clinical diagnosis. All predictions should be reviewed by a qualified radiologist.
+            </p>
+        </div>
+    </div>
+
+    <!-- ── Results ── -->
+    <div>
+        {% if result %}
+        <div id="results">
+
+            <!-- Result banner -->
+            {% set pred = result.predicted_class %}
+            <div class="result-banner {{ 'clot' if pred == 'clot' else 'normal' }}">
+                <span class="result-banner-icon">{{ '⚠️' if pred == 'clot' else '✅' }}</span>
+                <div>
+                    <div class="result-banner-label">
+                        Prediction — {{ selected_model | upper }}
+                    </div>
+                    <div class="result-banner-value">
+                        {{ pred | capitalize }}
+                        {% if pred == 'clot' %}Detected{% else %}Not Detected{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Probabilities -->
+            <div class="card mb-2">
+                <div class="card-header">
+                    <h3 class="card-title">Confidence Scores</h3>
+                </div>
+                <div class="prob-bar-group">
+                    {% for cls, prob in result.probabilities.items() %}
+                    <div class="prob-row">
+                        <span class="prob-label">{{ cls | capitalize }}</span>
+                        <div class="prob-track">
+                            <div class="prob-fill {{ 'clot' if cls == 'clot' else 'normal' }}"
+                                 data-width="{{ (prob * 100) | round(1) }}">
+                            </div>
+                        </div>
+                        <span class="prob-pct">{{ (prob * 100) | round(1) }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- XAI heatmaps -->
+            {% if result.gradcam_path and result.original_path %}
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        {% if selected_model == 'vit' %}Attention Rollout
+                        {% elif selected_model == 'ensemble' %}Ensemble CAM
+                        {% else %}Grad-CAM Heatmap
+                        {% endif %}
+                    </h3>
+                    <span style="font-size: 0.8rem; color: var(--txt-muted);">Explainable AI</span>
+                </div>
+                <div class="xai-grid">
+                    <div class="xai-image-card">
+                        <div class="xai-image-label">Original MRI</div>
+                        <img src="{{ result.original_path }}" alt="Original MRI">
+                        <div class="xai-download-bar">
+                            <a href="{{ result.original_path }}" download class="btn btn-outline btn-sm">⬇ Download</a>
+                        </div>
+                    </div>
+                    <div class="xai-image-card">
+                        <div class="xai-image-label">
+                            {% if selected_model == 'vit' %}Attention Map
+                            {% else %}Grad-CAM Overlay
+                            {% endif %}
+                        </div>
+                        <img src="{{ result.gradcam_path }}" alt="Heatmap">
+                        <div class="xai-download-bar">
+                            <a href="{{ result.gradcam_path }}" download class="btn btn-outline btn-sm">⬇ Download</a>
+                        </div>
+                    </div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--txt-muted); margin-top: 0.75rem;">
+                    🔴 Red/warm regions indicate areas the model focused on most when making this prediction.
+                </p>
+            </div>
+            {% endif %}
+
+        </div>
+
+        {% else %}
+
+        <!-- Empty state when no result yet -->
+        <div class="card" style="height: 100%; min-height: 320px; display: flex; align-items: center; justify-content: center;">
+            <div class="empty-state">
+                <div class="empty-icon">🩺</div>
+                <div class="empty-title">No prediction yet</div>
+                <div class="empty-desc">Upload an MRI scan and select a model to see the prediction and heatmap here.</div>
+            </div>
+        </div>
+
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+    // File name display
+    const fileInput = document.getElementById('fileInput');
+    const fileChosen = document.getElementById('fileChosen');
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            fileChosen.textContent = '✔ ' + fileInput.files[0].name;
+            fileChosen.style.display = 'block';
+        }
+    });
+
+    // Loading state on submit
+    document.getElementById('predictForm').addEventListener('submit', function() {
+        const btn = document.getElementById('submitBtn');
+        btn.textContent = '⏳ Processing…';
+        btn.disabled = true;
+    });
+
+    // Apply probability bar widths from data attributes
+    document.querySelectorAll('.prob-fill[data-width]').forEach(el => {
+        el.style.width = el.dataset.width + '%';
+    });
+
+    // Scroll to results if present
+    const resultsEl = document.getElementById('results');
+    if (resultsEl) {
+        resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{
+    "resnet50": {
+        "weight_file": "resnet50_best.pth"
+    },
+    "resnet101": {
+        "weight_file": "resnet101_best.pth"
+    },
+    "densenet121": {
+        "weight_file": "densenet121_best.pth"
+    },
+    "densenet169": {
+        "weight_file": "densenet169_best.pth"
+    },
+    "efficientnetb3": {
+        "weight_file": "efficientnetb3_best.pth"
+    }
+}

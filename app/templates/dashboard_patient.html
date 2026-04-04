@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard — NeuroScan{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-header">
+    <h1>My Dashboard</h1>
+    <p>View your prediction history and doctor reviews</p>
+</div>
+
+{% set total    = predictions | length %}
+{% set reviewed = predictions | selectattr('status', 'equalto', 'reviewed') | list | length %}
+{% set pending  = total - reviewed %}
+
+{# ── CLOT COUNT FIX: use namespace() so inner-loop assignment propagates outward ── #}
+{% set confirmed_clots = [] %}
+{% for p in predictions %}
+    {% if p.result == 'clot' %}
+        {% set ns = namespace(disagreed=false) %}
+        {% if p.reviews is defined %}
+            {% for r in p.reviews %}
+                {% if r.decision == 'disagree' %}
+                    {% set ns.disagreed = true %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+        {% if not ns.disagreed %}
+            {% if confirmed_clots.append(p) %}{% endif %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">🧠</div>
+        <div class="stat-info">
+            <div class="stat-label">Total Scans</div>
+            <div class="stat-value">{{ total }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">✅</div>
+        <div class="stat-info">
+            <div class="stat-label">Reviewed</div>
+            <div class="stat-value">{{ reviewed }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">⏳</div>
+        <div class="stat-info">
+            <div class="stat-label">Pending Review</div>
+            <div class="stat-value">{{ pending }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon danger">⚠️</div>
+        <div class="stat-info">
+            <div class="stat-label">Clot Confirmed</div>
+            <div class="stat-value">{{ confirmed_clots | length }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Prediction History</h3>
+        <a href="{{ url_for('routes.predict') }}" class="btn btn-primary btn-sm">+ New Prediction</a>
+    </div>
+
+    {% if predictions %}
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+
+    <div class="table-wrapper">
+        <table class="data-table" id="patientTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Result</th>
+                    <th>Model</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Doctor Review</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in predictions %}
+                <tr>
+                    <td class="row-num"></td>
+                    <td>
+                        <span class="badge {{ 'badge-clot' if p.result == 'clot' else 'badge-normal' }}">
+                            {{ '⚠' if p.result == 'clot' else '✓' }} {{ p.result | capitalize }}
+                        </span>
+                    </td>
+                    <td>
+                        <span style="font-size: 0.82rem; color: var(--txt-secondary); font-weight: 500;">
+                            {{ p.model_used | upper if p.model_used else 'N/A' }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge {{ 'badge-reviewed' if p.status == 'reviewed' else 'badge-pending' }}">
+                            {{ '✔ Reviewed' if p.status == 'reviewed' else '⏳ Pending' }}
+                        </span>
+                    </td>
+                    <td style="color: var(--txt-muted); font-size: 0.85rem;">
+                        {{ p.created_at.strftime("%d %b %Y, %H:%M") if p.created_at else "N/A" }}
+                    </td>
+                    <td>
+                        {% if p.status == 'reviewed' and p.reviews %}
+                            <button class="btn btn-outline btn-sm"
+                                    onclick="openModal('modal_{{ p.id }}')">
+                                View Reviews ({{ p.reviews | length }})
+                            </button>
+
+                            <div class="modal-backdrop" id="modal_{{ p.id }}">
+                                <div class="modal-box">
+                                    <div class="modal-header">
+                                        <h3 class="modal-title">Doctor Reviews</h3>
+                                        <button class="modal-close" onclick="closeModal('modal_{{ p.id }}')">✕</button>
+                                    </div>
+
+                                    <div style="background: var(--clr-surface-2); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1rem; border: 1px solid var(--clr-border); font-size: 0.85rem; display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                                        <div>
+                                            <span style="color: var(--txt-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;">AI Result</span>
+                                            <div style="margin-top: 0.1rem;">
+                                                <span class="badge {{ 'badge-clot' if p.result == 'clot' else 'badge-normal' }}">
+                                                    {{ p.result | capitalize }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span style="color: var(--txt-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;">Model</span>
+                                            <div style="font-weight: 600; margin-top: 0.1rem;">{{ p.model_used | upper if p.model_used else 'N/A' }}</div>
+                                        </div>
+                                        <div>
+                                            <span style="color: var(--txt-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;">Uploaded</span>
+                                            <div style="margin-top: 0.1rem;">{{ p.created_at.strftime("%d %b %Y") if p.created_at else "N/A" }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        {% for r in p.reviews %}
+                                        <div style="padding: 0.9rem; background: var(--clr-surface-2); border-radius: var(--radius-md); border: 1px solid var(--clr-border);">
+                                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 0.5rem;">
+                                                <span style="font-size: 0.875rem; font-weight: 600; color: var(--txt-primary);">
+                                                    👨‍⚕️ {{ r.doctor_email }}
+                                                </span>
+                                                <span class="badge {{ 'badge-normal' if r.decision == 'agree' else 'badge-clot' }}">
+                                                    {{ '✔ Agrees' if r.decision == 'agree' else '✖ Disagrees' }}
+                                                </span>
+                                            </div>
+                                            {% if r.notes %}
+                                            <p style="font-size: 0.85rem; color: var(--txt-secondary); margin: 0 0 0.5rem 0;">
+                                                "{{ r.notes }}"
+                                            </p>
+                                            {% endif %}
+                                            {% if r.created_at %}
+                                            <div style="font-size: 0.75rem; color: var(--txt-muted); margin-top: 0.35rem; display: flex; align-items: center; gap: 4px;">
+                                                🕐 Reviewed on {{ r.created_at.strftime("%d %b %Y, %H:%M") }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+
+                        {% elif p.status == 'reviewed' %}
+                            <span class="badge badge-reviewed">✔ Reviewed</span>
+                        {% else %}
+                            <span style="font-size: 0.82rem; color: var(--txt-muted);">Awaiting doctor</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#patientTable').DataTable({
+                pageLength: 10,
+                order: [[4, "desc"]],
+                columnDefs: [
+                    { orderable: false, targets: [0, 5] },
+                    { searchable: false, targets: 0 }
+                ],
+                drawCallback: function() {
+                    this.api().column(0, { search: 'applied', order: 'applied' }).nodes().each(function(cell, i) {
+                        cell.innerHTML = i + 1;
+                    });
+                }
+            });
+        });
+
+        function openModal(id)  { document.getElementById(id).classList.add('open'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+        document.querySelectorAll('.modal-backdrop').forEach(el => {
+            el.addEventListener('click', function(e) {
+                if (e.target === this) this.classList.remove('open');
+            });
+        });
+    </script>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🧠</div>
+        <div class="empty-title">No predictions yet</div>
+        <div class="empty-desc">Upload your first MRI scan to get started.</div>
+        <a href="{{ url_for('routes.predict') }}" class="btn btn-primary" style="margin-top: 1rem;">+ Upload MRI Scan</a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

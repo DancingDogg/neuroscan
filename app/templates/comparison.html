@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Model Comparison — NeuroScan{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h1>Model Performance Comparison</h1>
+    <p>Evaluation results on a held-out test set of 34 MRI scans (17 clot, 17 no clot) from Hospital Pengajar UPM</p>
+</div>
+
+<!-- Best model callout -->
+<div class="card mb-3" style="border-color: var(--clr-primary); background: var(--clr-primary-light);">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="font-size: 2.2rem;">⭐</div>
+        <div>
+            <div style="font-weight: 700; font-size: 1.05rem; color: var(--clr-primary-dark);">Ensemble (Simple Avg / Weighted Avg) — Best Performance</div>
+            <p style="color: var(--clr-primary-dark); font-size: 0.875rem; margin: 0.2rem 0 0;">
+                Combining all six models through averaging achieves 100% accuracy, precision, recall, and F1-score on the test set,
+                outperforming any individual model.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">All Models — Test Set Results</h3>
+        <span style="font-size: 0.82rem; color: var(--txt-muted);">Weighted metrics · n=34</span>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Accuracy</th>
+                    <th>Precision</th>
+                    <th>Recall</th>
+                    <th>F1-Score</th>
+                    <th>ROC-AUC</th>
+                    <th>PR-AUC</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>ResNet50</strong></td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td><span class="badge badge-patient">CNN</span></td>
+                </tr>
+                <tr>
+                    <td><strong>ResNet101</strong></td>
+                    <td>0.9706</td>
+                    <td>0.9722</td>
+                    <td>0.9706</td>
+                    <td>0.9706</td>
+                    <td>0.9827</td>
+                    <td>0.9815</td>
+                    <td><span class="badge badge-patient">CNN</span></td>
+                </tr>
+                <tr>
+                    <td><strong>DenseNet121</strong></td>
+                    <td>0.9118</td>
+                    <td>0.9250</td>
+                    <td>0.9118</td>
+                    <td>0.9118</td>
+                    <td>0.9965</td>
+                    <td>0.9967</td>
+                    <td><span class="badge badge-patient">CNN</span></td>
+                </tr>
+                <tr>
+                    <td><strong>DenseNet169</strong></td>
+                    <td>0.9412</td>
+                    <td>0.9474</td>
+                    <td>0.9412</td>
+                    <td>0.9410</td>
+                    <td>0.9970</td>
+                    <td>0.9970</td>
+                    <td><span class="badge badge-patient">CNN</span></td>
+                </tr>
+                <tr>
+                    <td><strong>EfficientNet-B3</strong></td>
+                    <td>0.9706</td>
+                    <td>0.9722</td>
+                    <td>0.9706</td>
+                    <td>0.9706</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td><span class="badge badge-patient">CNN</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Vision Transformer (ViT)</strong></td>
+                    <td>0.8824</td>
+                    <td>0.9048</td>
+                    <td>0.8824</td>
+                    <td>0.8807</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td><span class="badge badge-doctor">Transformer</span></td>
+                </tr>
+                <tr style="background: var(--clr-primary-light);">
+                    <td><strong>⭐ Ensemble (Simple Avg)</strong></td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td><span class="badge badge-admin">Ensemble</span></td>
+                </tr>
+                <tr style="background: var(--clr-primary-light);">
+                    <td><strong>⭐ Ensemble (Weighted Avg)</strong></td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td><span class="badge badge-admin">Ensemble</span></td>
+                </tr>
+                <tr style="background: var(--clr-primary-light);">
+                    <td><strong>⭐ Ensemble (Hard Voting)</strong></td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td style="color: var(--txt-muted);">—</td>
+                    <td style="color: var(--txt-muted);">—</td>
+                    <td><span class="badge badge-admin">Ensemble</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Ensemble (Stacking)</strong></td>
+                    <td>0.9706</td>
+                    <td>0.9722</td>
+                    <td>0.9706</td>
+                    <td>0.9706</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td class="metric-highlight">1.000</td>
+                    <td><span class="badge badge-admin">Ensemble</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="alert info mt-2">
+        <span class="alert-icon">ℹ</span>
+        <span>ResNet50's perfect score may reflect overfitting to the small test set (n=34). External validation is recommended. Ensemble models are more robust against such variance.</span>
+    </div>
+</div>
+
+{% endblock %}

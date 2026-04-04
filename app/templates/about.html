@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}About — NeuroScan{% endblock %}
+
+{% block content %}
+
+<div class="about-hero">
+    <div class="about-icon-lg">🧠</div>
+    <div>
+        <h1>About NeuroScan</h1>
+        <p>
+            NeuroScan is a Final Year Project developed at Universiti Tunku Abdul Rahman (UTAR) under the
+            Bachelor of Information Technology (Honours) Communications and Networking programme.
+            It leverages ensemble deep learning to detect ischemic stroke from brain MRI scans,
+            combining multiple state-of-the-art architectures with explainable AI for transparent,
+            trustworthy predictions.
+        </p>
+        <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.4rem;">
+            <span class="tech-tag">PyTorch</span>
+            <span class="tech-tag">Flask</span>
+            <span class="tech-tag">Firebase</span>
+            <span class="tech-tag">ResNet50/101</span>
+            <span class="tech-tag">DenseNet121/169</span>
+            <span class="tech-tag">EfficientNet-B3</span>
+            <span class="tech-tag">Vision Transformer</span>
+            <span class="tech-tag">Grad-CAM</span>
+            <span class="tech-tag">Attention Rollout</span>
+            <span class="tech-tag">Ensemble Learning</span>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🎯 Objectives</h3>
+        </div>
+        <ul style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem;">
+            <li style="font-size: 0.9rem; color: var(--txt-secondary);">Fine-tune and evaluate multiple state-of-the-art deep learning architectures</li>
+            <li style="font-size: 0.9rem; color: var(--txt-secondary);">Develop an ensemble model combining CNN and transformer predictions</li>
+            <li style="font-size: 0.9rem; color: var(--txt-secondary);">Implement Explainable AI (Grad-CAM, Attention Rollout) for transparency</li>
+            <li style="font-size: 0.9rem; color: var(--txt-secondary);">Deploy the system as a secure, role-based web application</li>
+        </ul>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📊 Dataset</h3>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; padding: 0.5rem 0; border-bottom: 1px solid var(--clr-border);">
+                <span style="color: var(--txt-muted);">Source</span>
+                <span style="font-weight: 500;">Hospital Pengajar UPM (HPUPM)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; padding: 0.5rem 0; border-bottom: 1px solid var(--clr-border);">
+                <span style="color: var(--txt-muted);">Training images</span>
+                <span style="font-weight: 500;">15,120 (balanced)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; padding: 0.5rem 0; border-bottom: 1px solid var(--clr-border);">
+                <span style="color: var(--txt-muted);">Validation images</span>
+                <span style="font-weight: 500;">38</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; padding: 0.5rem 0;">
+                <span style="color: var(--txt-muted);">Test images</span>
+                <span style="font-weight: 500;">34</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">👤 Project Info</h3>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.875rem;">
+        <div>
+            <span style="color: var(--txt-muted); display: block; margin-bottom: 0.2rem;">Developer</span>
+            <span style="font-weight: 500; color: var(--txt-primary);">Lee Ding Kuan</span>
+        </div>
+        <div>
+            <span style="color: var(--txt-muted); display: block; margin-bottom: 0.2rem;">Supervisor</span>
+            <span style="font-weight: 500; color: var(--txt-primary);">Puan Nur Lyana Shahfiqa Bt Albashah</span>
+        </div>
+        <div>
+            <span style="color: var(--txt-muted); display: block; margin-bottom: 0.2rem;">Institution</span>
+            <span style="font-weight: 500; color: var(--txt-primary);">UTAR, Faculty of ICT (Kampar)</span>
+        </div>
+        <div>
+            <span style="color: var(--txt-muted); display: block; margin-bottom: 0.2rem;">Year</span>
+            <span style="font-weight: 500; color: var(--txt-primary);">2025</span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

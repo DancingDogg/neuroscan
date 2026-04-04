@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}NeuroScan — AI-Powered Ischemic Stroke Detection{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ── -->
+<section class="hero">
+    <div class="hero-content">
+        <div class="hero-eyebrow">
+            🏥 Clinical AI Research Tool
+        </div>
+        <h1>Ischemic Stroke Detection with Ensemble Deep Learning</h1>
+        <p>Upload a brain MRI scan and receive an instant AI-powered prediction with visual explanations from 6 state-of-the-art models.</p>
+        <div class="hero-actions">
+            <a href="{{ url_for('routes.predict') }}" class="btn-hero-primary">
+                ⚡ Try Prediction
+            </a>
+            <a href="{{ url_for('routes.comparison') }}" class="btn-hero-ghost">
+                📊 View Model Performance
+            </a>
+        </div>
+        <div class="hero-stats">
+            <div>
+                <span class="hero-stat-value">6</span>
+                <span class="hero-stat-label">Deep Learning Models</span>
+            </div>
+            <div>
+                <span class="hero-stat-value">100%</span>
+                <span class="hero-stat-label">Ensemble Accuracy</span>
+            </div>
+            <div>
+                <span class="hero-stat-value">15,120</span>
+                <span class="hero-stat-label">Training MRI Scans</span>
+            </div>
+            <div>
+                <span class="hero-stat-value">XAI</span>
+                <span class="hero-stat-label">Grad-CAM + Attention</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Models ── -->
+<section class="mb-3">
+    <div class="flex items-center justify-between mb-2">
+        <div>
+            <h2 style="color: var(--txt-primary); margin-bottom: 0.2rem;">Available Models</h2>
+            <p class="text-muted">Choose from individual fine-tuned models or the combined ensemble</p>
+        </div>
+        <a href="{{ url_for('routes.comparison') }}" class="btn btn-outline btn-sm">Compare all →</a>
+    </div>
+
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="feature-card-icon" style="background: #e8f1fb;">🔵</div>
+            <div class="feature-card-title">ResNet50 / 101</div>
+            <p>Deep residual networks with skip connections for robust feature extraction across layers.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-card-icon" style="background: #eaf6ef;">🟢</div>
+            <div class="feature-card-title">DenseNet121 / 169</div>
+            <p>Dense connectivity allows feature reuse, improving gradient flow in medical imaging tasks.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-card-icon" style="background: #fff7ec;">🟠</div>
+            <div class="feature-card-title">EfficientNet-B3</div>
+            <p>Compound scaling balances depth, width, and resolution for high accuracy with fewer parameters.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-card-icon" style="background: #f0eaff;">🟣</div>
+            <div class="feature-card-title">Vision Transformer</div>
+            <p>Self-attention mechanisms model global relationships, capturing long-range spatial context.</p>
+        </div>
+        <div class="feature-card" style="border-color: var(--clr-primary); border-width: 1.5px;">
+            <div class="feature-card-icon" style="background: var(--clr-primary-light);">⭐</div>
+            <div class="feature-card-title" style="color: var(--clr-primary);">Ensemble Model</div>
+            <p>Combines all model predictions via averaging, voting, and stacking for maximum robustness.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-card-icon" style="background: #fdf0ee;">🔴</div>
+            <div class="feature-card-title">Explainable AI</div>
+            <p>Grad-CAM for CNN models and Attention Rollout for ViT provide visual justification for predictions.</p>
+        </div>
+    </div>
+</section>
+
+<!-- ── How it works ── -->
+<section class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">How It Works</h3>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; padding-top: 0.25rem;">
+        <div style="text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.6rem;">🖼️</div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--txt-primary); margin-bottom: 0.3rem;">1. Upload MRI</div>
+            <p style="font-size: 0.82rem;">Upload a brain MRI scan in JPG or PNG format via the Predict page.</p>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.6rem;">🤖</div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--txt-primary); margin-bottom: 0.3rem;">2. Model Inference</div>
+            <p style="font-size: 0.82rem;">The selected deep learning model preprocesses and classifies the scan as clot or no clot.</p>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.6rem;">🔍</div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--txt-primary); margin-bottom: 0.3rem;">3. Explainability</div>
+            <p style="font-size: 0.82rem;">Grad-CAM or Attention Rollout highlights the regions that influenced the prediction.</p>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.6rem;">👨‍⚕️</div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--txt-primary); margin-bottom: 0.3rem;">4. Doctor Review</div>
+            <p style="font-size: 0.82rem;">A verified doctor reviews the prediction and submits their assessment for your record.</p>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NeuroScan — Brain Stroke Detection{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="page-wrapper">
+
+    <!-- ── Navbar ── -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-inner">
+                <a href="{{ url_for('routes.home') }}" class="navbar-brand">
+                    <div class="brand-icon">🧠</div>
+                    <span class="brand-name">Neuro<span>Scan</span></span>
+                </a>
+
+                <ul class="navbar-nav">
+                    <li><a href="{{ url_for('routes.home') }}"       {% if request.endpoint == 'routes.home'       %}class="active"{% endif %}>Home</a></li>
+                    <li><a href="{{ url_for('routes.predict') }}"    {% if request.endpoint == 'routes.predict'    %}class="active"{% endif %}>Predict</a></li>
+                    <li><a href="{{ url_for('routes.comparison') }}" {% if request.endpoint == 'routes.comparison' %}class="active"{% endif %}>Model Comparison</a></li>
+                    <li><a href="{{ url_for('routes.about') }}"      {% if request.endpoint == 'routes.about'      %}class="active"{% endif %}>About</a></li>
+                </ul>
+
+                <div class="navbar-actions">
+                    {% if current_user.is_authenticated %}
+                        <span class="nav-badge {{ current_user.role }}">{{ current_user.role | capitalize }}</span>
+
+                        {% if current_user.role == "admin" %}
+                            <a href="{{ url_for('routes.dashboard_admin') }}"   class="btn btn-outline btn-sm">Dashboard</a>
+                        {% elif current_user.role == "doctor" %}
+                            <a href="{{ url_for('routes.dashboard_doctor') }}"  class="btn btn-outline btn-sm">Dashboard</a>
+                        {% else %}
+                            <a href="{{ url_for('routes.dashboard_patient') }}" class="btn btn-outline btn-sm">Dashboard</a>
+                        {% endif %}
+
+                        <a href="{{ url_for('routes.logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+                    {% else %}
+                        <a href="{{ url_for('routes.login') }}"    class="btn btn-outline btn-sm">Login</a>
+                        <a href="{{ url_for('routes.register') }}" class="btn btn-primary btn-sm">Register</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ── Main ── -->
+    <main class="main-content">
+        <div class="container">
+
+            <!-- Flash messages with deduplication to prevent the redirect loop showing duplicates -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% set seen = [] %}
+                    {% for category, message in messages %}
+                        {% if message not in seen %}
+                            {% if seen.append(message) %}{% endif %}
+                            <div class="alert {{ category }}" role="alert">
+                                <span class="alert-icon">
+                                    {% if category == 'success' %}✔
+                                    {% elif category == 'danger' %}✖
+                                    {% elif category == 'warning' %}⚠
+                                    {% else %}ℹ{% endif %}
+                                </span>
+                                {{ message }}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer>
+        <p>© 2025 Lee Ding Kuan · NeuroScan FYP · Universiti Tunku Abdul Rahman</p>
+    </footer>
+
+</div>
+
+</body>
+</html>
