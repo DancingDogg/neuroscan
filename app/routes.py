@@ -133,6 +133,70 @@ def logout():
     logout_user()
     return redirect(url_for('routes.login'))
 
+# ── ADD these two routes to routes.py ──
+# Place them after the logout route, before the General Pages section
+
+@bp.route('/settings')
+@login_required
+def settings():
+    # Fetch extra info from Firestore
+    user_doc = db.collection("users").document(current_user.id).get()
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+
+    # Format joined date
+    joined_at = None
+    if user_data.get("created_at"):
+        try:
+            joined_at = user_data["created_at"].strftime("%d %b %Y")
+        except Exception:
+            joined_at = str(user_data["created_at"])
+
+    # Count predictions for this user
+    try:
+        preds = db.collection("predictions") \
+            .where("user_id", "==", current_user.id).get()
+        prediction_count = len(preds)
+    except Exception:
+        prediction_count = 0
+
+    # Detect if Google user (no password provider)
+    is_google_user = False
+    try:
+        firebase_user = auth.get_user(current_user.id)
+        providers = [p.provider_id for p in firebase_user.provider_data]
+        is_google_user = 'google.com' in providers and 'password' not in providers
+    except Exception:
+        pass
+
+    return render_template('settings.html',
+        joined_at=joined_at,
+        prediction_count=prediction_count,
+        is_google_user=is_google_user,
+        api_key=os.environ.get('FIREBASE_API_KEY'),
+        auth_domain=os.environ.get('FIREBASE_AUTH_DOMAIN'),
+        project_id=os.environ.get('FIREBASE_PROJECT_ID')
+    )
+
+
+@bp.route('/settings/update_name', methods=['POST'])
+@login_required
+def update_display_name():
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON.'}), 400
+    data = request.get_json(silent=True)
+    name = (data.get('name') or '').strip()
+    if not name or len(name) < 2:
+        return jsonify({'error': 'Name must be at least 2 characters.'}), 400
+    if len(name) > 60:
+        return jsonify({'error': 'Name must be under 60 characters.'}), 400
+    try:
+        db.collection("users").document(current_user.id).update({"name": name})
+        current_user.name = name   # update in-session object too
+        log_event(current_user.id, current_user.role, "update_name", {"name": name})
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # -------------------------------
 # General Pages

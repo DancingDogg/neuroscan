@@ -10,6 +10,7 @@ from .gradcam import GradCAM
 import cv2, uuid
 import numpy as np
 import joblib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -28,12 +29,20 @@ cnn_transform = transforms.Compose([
                          [0.229, 0.224, 0.225])
 ])
 
-# FIX: removed module-level vit_processor — it was never used and caused
-# a redundant HuggingFace download + memory allocation on every startup.
-# The ViT prediction branch creates its own processor inline when needed.
-
 VIT_MODEL_NAME = "google/vit-base-patch16-224-in21k"
 
+# -----------------------------
+# SPEED FIX 1: Cache ViT processor at startup instead of downloading on every prediction
+# Previously: AutoImageProcessor.from_pretrained() was called inside predict_stroke_risk()
+# on every single ViT prediction — this caused ~300-500ms overhead each time.
+# -----------------------------
+print("[INFO] Loading ViT processor at startup...")
+VIT_PROCESSOR = AutoImageProcessor.from_pretrained(VIT_MODEL_NAME, use_fast=True)
+print("[INFO] ViT processor ready.")
+
+# -----------------------------
+# Model Loader
+# -----------------------------
 def load_model(model_name, checkpoint_filename):
     checkpoint_path = os.path.join(MODEL_DIR, checkpoint_filename)
 
@@ -67,7 +76,6 @@ def load_model(model_name, checkpoint_filename):
             output_attentions=True
         )
         model = ViTForImageClassification(config)
-        # FIX: added weights_only=False to suppress PyTorch 2.4+ warning
         state_dict = torch.load(checkpoint_path, map_location=device, weights_only=False)
         model.load_state_dict(state_dict)
         model.to(device)
@@ -77,21 +85,36 @@ def load_model(model_name, checkpoint_filename):
     else:
         raise ValueError(f"Model {model_name} not supported!")
 
-    # FIX: added weights_only=False to suppress PyTorch 2.4+ warning
     model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=False))
     model.to(device)
     model.eval()
     return model
 
+# Load all models at startup
 MODELS = {
-    "resnet50":      load_model("resnet50",      "resnet50_best.pth"),
-    "resnet101":     load_model("resnet101",     "resnet101_best.pth"),
-    "densenet121":   load_model("densenet121",   "densenet121_best.pth"),
-    "densenet169":   load_model("densenet169",   "densenet169_best.pth"),
+    "resnet50":       load_model("resnet50",       "resnet50_best.pth"),
+    "resnet101":      load_model("resnet101",      "resnet101_best.pth"),
+    "densenet121":    load_model("densenet121",    "densenet121_best.pth"),
+    "densenet169":    load_model("densenet169",    "densenet169_best.pth"),
     "efficientnetb3": load_model("efficientnetb3", "efficientnetb3_best.pth"),
-    "vit":           load_model("vit",           "vit_best.pth"),
+    "vit":            load_model("vit",            "vit_best.pth"),
 }
 
+# -----------------------------
+# SPEED FIX 2: Cache GradCAM objects per model at startup
+# Previously: GradCAM(model, model_name) was instantiated inside every prediction call,
+# which registers new hooks on the model every time — wasteful and slow.
+# Now we create one GradCAM object per CNN model and reuse it.
+# -----------------------------
+CNN_MODELS = ["resnet50", "resnet101", "densenet121", "densenet169", "efficientnetb3"]
+GRADCAM_CACHE = {
+    name: GradCAM(MODELS[name], name) for name in CNN_MODELS
+}
+print("[INFO] GradCAM objects cached for all CNN models.")
+
+# -----------------------------
+# Prediction Function
+# -----------------------------
 def predict_stroke_risk(image_path, model_name="resnet50"):
 
     if model_name == "ensemble":
@@ -106,12 +129,14 @@ def predict_stroke_risk(image_path, model_name="resnet50"):
 
     gradcam_url, orig_url = None, None
 
+    # ----------------------------
+    # ViT branch (Attention Rollout)
+    # ----------------------------
     if model_name == "vit":
-        from transformers import AutoImageProcessor
         from .vit_rollout import VitAttentionRollout
 
-        processor = AutoImageProcessor.from_pretrained(VIT_MODEL_NAME, use_fast=True)
-        inputs = processor(images=image, return_tensors="pt")
+        # SPEED FIX 1 applied: use cached VIT_PROCESSOR instead of downloading fresh
+        inputs = VIT_PROCESSOR(images=image, return_tensors="pt")
         input_tensor = inputs["pixel_values"].to(device)
         rgb_img = np.array(image.resize((224, 224))).astype(np.float32) / 255.0
 
@@ -146,6 +171,9 @@ def predict_stroke_risk(image_path, model_name="resnet50"):
         except Exception as e:
             print(f"[WARN] ViT interpretability failed: {e}")
 
+    # ----------------------------
+    # CNN branch (Grad-CAM)
+    # ----------------------------
     else:
         input_tensor = cnn_transform(image).unsqueeze(0).to(device)
         rgb_img = np.array(image.resize((224, 224))).astype(np.float32) / 255.0
@@ -159,7 +187,8 @@ def predict_stroke_risk(image_path, model_name="resnet50"):
         pred_class = classes[pred_idx]
 
         try:
-            gradcam = GradCAM(model, model_name)
+            # SPEED FIX 2 applied: reuse cached GradCAM object instead of creating new one
+            gradcam = GRADCAM_CACHE[model_name]
             cam = gradcam.generate(input_tensor, target_class=pred_idx)
 
             heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
@@ -186,34 +215,64 @@ def predict_stroke_risk(image_path, model_name="resnet50"):
         "original_path": orig_url
     }
 
+
+# Load ensemble descriptor
 ENSEMBLE_DESCRIPTOR_PATH = os.path.join(MODEL_DIR, "ensemble_best.pth")
 ENSEMBLE = None
 if os.path.exists(ENSEMBLE_DESCRIPTOR_PATH):
-    # FIX: weights_only=False
     ENSEMBLE = torch.load(ENSEMBLE_DESCRIPTOR_PATH, map_location=device, weights_only=False)
 
+
 def predict_ensemble(image_path):
+    """Run ensemble prediction with parallelised model inference."""
     if ENSEMBLE is None:
         raise ValueError("No ensemble_best.pth found!")
 
     method = ENSEMBLE["method"]
     selected_models = ENSEMBLE["selected_models"]
 
-    probs_list = []
-    heatmaps = []
     image = Image.open(image_path).convert('RGB')
     rgb_img = np.array(image.resize((224, 224))).astype(np.float32) / 255.0
 
+    # -----------------------------
+    # SPEED FIX 3: Run all ensemble models in parallel using ThreadPoolExecutor
+    # Previously: models ran one after another (sequential) — total time = sum of all models
+    # Now: models run simultaneously — total time ≈ slowest single model
+    # Note: ThreadPoolExecutor works well here because PyTorch releases the GIL during inference
+    # -----------------------------
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(selected_models)) as executor:
+        future_to_name = {
+            executor.submit(predict_stroke_risk, image_path, name): name
+            for name in selected_models
+        }
+        for future in as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                results[name] = future.result()
+            except Exception as e:
+                print(f"[WARN] Ensemble model {name} failed: {e}")
+                results[name] = None
+
+    # Collect results in original model order
+    probs_list = []
+    heatmaps = []
     for name in selected_models:
-        res = predict_stroke_risk(image_path, model_name=name)
+        res = results.get(name)
+        if res is None:
+            continue
         probs = res["probabilities"]
         probs_tensor = torch.tensor([probs[c] for c in classes], dtype=torch.float32)
         probs_list.append(probs_tensor)
 
         if res["gradcam_path"]:
             cam = cv2.imread(os.path.join("app", res["gradcam_path"].lstrip("/")), cv2.IMREAD_COLOR)
-            cam = cv2.resize(cam, (224, 224))
-            heatmaps.append(cam.astype(np.float32) / 255.0)
+            if cam is not None:
+                cam = cv2.resize(cam, (224, 224))
+                heatmaps.append(cam.astype(np.float32) / 255.0)
+
+    if not probs_list:
+        raise ValueError("All ensemble models failed.")
 
     probs_stack = torch.stack(probs_list)
 

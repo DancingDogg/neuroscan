@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}Account Settings — NeuroScan{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h1>Account Settings</h1>
+    <p>Manage your personal information and account security</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem; align-items: start;">
+
+    <!-- ── Left: Account Info card ── -->
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+
+        <!-- Avatar + basic info -->
+        <div class="card" style="text-align: center; padding: 2rem 1.5rem;">
+            <div style="width: 72px; height: 72px; border-radius: 50%;
+                        background: linear-gradient(135deg, var(--clr-primary) 0%, var(--clr-primary-mid) 100%);
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: 1.8rem; margin: 0 auto 1rem; box-shadow: 0 4px 14px rgba(21,88,168,0.25);">
+                {{ (current_user.name or current_user.email)[0] | upper }}
+            </div>
+            <div style="font-weight: 700; font-size: 1rem; color: var(--txt-primary); margin-bottom: 0.2rem;">
+                {{ current_user.name or 'No name set' }}
+            </div>
+            <div style="font-size: 0.82rem; color: var(--txt-muted); margin-bottom: 0.75rem;">
+                {{ current_user.email }}
+            </div>
+            <span class="nav-badge {{ current_user.role }}" style="display: inline-flex;">
+                {{ current_user.role | capitalize }}
+            </span>
+        </div>
+
+        <!-- Account info details -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Account Info</h3>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.875rem;">
+                <div>
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                                letter-spacing: 0.07em; color: var(--txt-muted); margin-bottom: 0.2rem;">Email</div>
+                    <div style="color: var(--txt-primary); font-weight: 500;">{{ current_user.email }}</div>
+                </div>
+                <div style="border-top: 1px solid var(--clr-border); padding-top: 0.85rem;">
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                                letter-spacing: 0.07em; color: var(--txt-muted); margin-bottom: 0.2rem;">Role</div>
+                    <div style="color: var(--txt-primary); font-weight: 500;">{{ current_user.role | capitalize }}</div>
+                </div>
+                <div style="border-top: 1px solid var(--clr-border); padding-top: 0.85rem;">
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                                letter-spacing: 0.07em; color: var(--txt-muted); margin-bottom: 0.2rem;">Member Since</div>
+                    <div style="color: var(--txt-primary); font-weight: 500;">
+                        {{ joined_at if joined_at else 'N/A' }}
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--clr-border); padding-top: 0.85rem;">
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                                letter-spacing: 0.07em; color: var(--txt-muted); margin-bottom: 0.2rem;">Total Predictions</div>
+                    <div style="color: var(--txt-primary); font-weight: 500;">{{ prediction_count }}</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Right: Action cards ── -->
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+
+        <!-- Flash messages -->
+        <div id="settingsAlert"></div>
+
+        <!-- Change display name -->
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Display Name</h3>
+                    <p style="font-size: 0.82rem; color: var(--txt-muted); margin: 0.15rem 0 0;">
+                        This name appears across your dashboard and reviews.
+                    </p>
+                </div>
+                <div class="card-icon blue">👤</div>
+            </div>
+            <form id="nameForm">
+                <div class="form-group">
+                    <label class="form-label" for="displayName">Full name</label>
+                    <input class="form-control" type="text" id="displayName"
+                           value="{{ current_user.name or '' }}"
+                           placeholder="e.g. Dr. Ahmad bin Ali"
+                           maxlength="60" autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-primary" id="nameBtn">
+                    Save name
+                </button>
+            </form>
+        </div>
+
+        <!-- Change password -->
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Change Password</h3>
+                    <p style="font-size: 0.82rem; color: var(--txt-muted); margin: 0.15rem 0 0;">
+                        Enter your current password then choose a new one.
+                    </p>
+                </div>
+                <div class="card-icon red">🔒</div>
+            </div>
+            <form id="passwordForm">
+                <div class="form-group">
+                    <label class="form-label" for="currentPassword">Current password</label>
+                    <input class="form-control" type="password" id="currentPassword"
+                           placeholder="Enter current password" autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="newPassword">New password</label>
+                    <input class="form-control" type="password" id="newPassword"
+                           placeholder="At least 8 characters" autocomplete="new-password">
+                    <div class="pw-strength-bar mt-1">
+                        <div class="pw-strength-fill" id="pwBar"></div>
+                    </div>
+                    <p class="form-hint" id="pwHint">Use 8+ characters with letters and numbers</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="confirmPassword">Confirm new password</label>
+                    <input class="form-control" type="password" id="confirmPassword"
+                           placeholder="Re-enter new password" autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn btn-primary" id="passwordBtn">
+                    Update password
+                </button>
+            </form>
+
+            <!-- Info note for Google users -->
+            {% if is_google_user %}
+            <div class="alert info mt-2" style="margin-bottom: 0;">
+                <span class="alert-icon">ℹ</span>
+                <span>Your account uses Google Sign-in. Password is managed by Google — change it at
+                    <a href="https://myaccount.google.com/security" target="_blank" style="font-weight:600;">myaccount.google.com</a>.
+                </span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Danger zone -->
+        <div class="card" style="border-color: var(--clr-danger-bg);">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title" style="color: var(--clr-danger);">Sign Out</h3>
+                    <p style="font-size: 0.82rem; color: var(--txt-muted); margin: 0.15rem 0 0;">
+                        Sign out from your current session.
+                    </p>
+                </div>
+                <div class="card-icon red">🚪</div>
+            </div>
+            <a href="{{ url_for('routes.logout') }}" class="btn btn-danger"
+               style="display: inline-flex; width: fit-content;">
+                Sign out
+            </a>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+<script>
+    const firebaseConfig = {
+        apiKey: "{{ api_key }}",
+        authDomain: "{{ auth_domain }}",
+        projectId: "{{ project_id }}"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+    function showAlert(msg, type) {
+        document.getElementById('settingsAlert').innerHTML =
+            `<div class="alert ${type}" style="margin-bottom:1rem;">
+                <span class="alert-icon">${type === 'danger' ? '✖' : type === 'success' ? '✔' : 'ℹ'}</span>${msg}
+             </div>`;
+        // Scroll to alert
+        document.getElementById('settingsAlert').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ── Change display name ──
+    document.getElementById('nameForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('nameBtn');
+        const name = document.getElementById('displayName').value.trim();
+
+        if (!name) { showAlert('Please enter a display name.', 'danger'); return; }
+        if (name.length < 2) { showAlert('Name must be at least 2 characters.', 'danger'); return; }
+
+        btn.textContent = 'Saving…';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch("{{ url_for('routes.update_display_name') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showAlert('Display name updated successfully.', 'success');
+                // Update the avatar letter and name shown on page
+                document.querySelector('.avatar-letter') &&
+                    (document.querySelector('.avatar-letter').textContent = name[0].toUpperCase());
+            } else {
+                showAlert(data.error || 'Failed to update name.', 'danger');
+            }
+        } catch (err) {
+            showAlert('Something went wrong. Please try again.', 'danger');
+        } finally {
+            btn.textContent = 'Save name';
+            btn.disabled = false;
+        }
+    });
+
+    // ── Password strength indicator ──
+    document.getElementById('newPassword').addEventListener('input', function () {
+        const val = this.value;
+        const bar  = document.getElementById('pwBar');
+        const hint = document.getElementById('pwHint');
+        let s = 0;
+        if (val.length >= 8) s++;
+        if (/[A-Z]/.test(val)) s++;
+        if (/[0-9]/.test(val)) s++;
+        if (/[^A-Za-z0-9]/.test(val)) s++;
+        const widths = ['0%','30%','55%','80%','100%'];
+        const colors = ['','#e24b4a','#ef9f27','#1a6fb5','#1a7a4a'];
+        const hints  = ['','Weak — too short','Fair — add uppercase','Good — add numbers','Strong password'];
+        bar.style.width      = widths[s];
+        bar.style.background = colors[s];
+        hint.textContent     = hints[s] || hints[0];
+    });
+
+    // ── Change password ──
+    document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn     = document.getElementById('passwordBtn');
+        const current = document.getElementById('currentPassword').value;
+        const newPw   = document.getElementById('newPassword').value;
+        const confirm = document.getElementById('confirmPassword').value;
+
+        if (!current) { showAlert('Please enter your current password.', 'danger'); return; }
+        if (newPw.length < 8) { showAlert('New password must be at least 8 characters.', 'danger'); return; }
+        if (newPw !== confirm) { showAlert('New passwords do not match.', 'danger'); return; }
+        if (current === newPw) { showAlert('New password must be different from current password.', 'danger'); return; }
+
+        btn.textContent = 'Updating…';
+        btn.disabled = true;
+
+        try {
+            // Re-authenticate with Firebase first, then update password
+            const user = firebase.auth().currentUser;
+
+            if (!user) {
+                showAlert('Session expired. Please log in again.', 'danger');
+                btn.textContent = 'Update password';
+                btn.disabled = false;
+                return;
+            }
+
+            // Re-authenticate
+            const credential = firebase.auth.EmailAuthProvider.credential(user.email, current);
+            await user.reauthenticateWithCredential(credential);
+
+            // Update password in Firebase Auth
+            await user.updatePassword(newPw);
+
+            showAlert('Password updated successfully.', 'success');
+            document.getElementById('passwordForm').reset();
+            document.getElementById('pwBar').style.width = '0%';
+            document.getElementById('pwHint').textContent = 'Use 8+ characters with letters and numbers';
+
+        } catch (err) {
+            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                showAlert('Current password is incorrect.', 'danger');
+            } else if (err.code === 'auth/requires-recent-login') {
+                showAlert('Please log out and log in again before changing your password.', 'warning');
+            } else {
+                showAlert(err.message, 'danger');
+            }
+        } finally {
+            btn.textContent = 'Update password';
+            btn.disabled = false;
+        }
+    });
+</script>
+
+{% endblock %}

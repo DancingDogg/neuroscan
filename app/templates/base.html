@@ -27,6 +27,9 @@
                     <li><a href="{{ url_for('routes.about') }}"      {% if request.endpoint == 'routes.about'      %}class="active"{% endif %}>About</a></li>
                 </ul>
 
+                {# ── REPLACE the navbar-actions div in base.html with this ──
+   Adds a Settings link for authenticated users ── #}
+
                 <div class="navbar-actions">
                     {% if current_user.is_authenticated %}
                         <span class="nav-badge {{ current_user.role }}">{{ current_user.role | capitalize }}</span>
@@ -38,6 +41,10 @@
                         {% else %}
                             <a href="{{ url_for('routes.dashboard_patient') }}" class="btn btn-outline btn-sm">Dashboard</a>
                         {% endif %}
+
+                        <a href="{{ url_for('routes.settings') }}"
+                        class="btn btn-outline btn-sm {% if request.endpoint == 'routes.settings' %}active{% endif %}"
+                        title="Account Settings">⚙</a>
 
                         <a href="{{ url_for('routes.logout') }}" class="btn btn-ghost btn-sm">Logout</a>
                     {% else %}
