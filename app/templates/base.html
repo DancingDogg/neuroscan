@@ -42,11 +42,79 @@
                             <a href="{{ url_for('routes.dashboard_patient') }}" class="btn btn-outline btn-sm">Dashboard</a>
                         {% endif %}
 
-                        <a href="{{ url_for('routes.settings') }}"
-                        class="btn btn-outline btn-sm {% if request.endpoint == 'routes.settings' %}active{% endif %}"
-                        title="Account Settings">⚙</a>
+                        <!-- Avatar dropdown -->
+                        <div style="position:relative;" id="avatarMenu">
+                            <button onclick="toggleDropdown()" 
+                                    style="width:34px; height:34px; border-radius:50%;
+                                        background:linear-gradient(135deg, var(--clr-primary), var(--clr-primary-mid));
+                                        color:#fff; font-size:0.82rem; font-weight:700;
+                                        border:none; cursor:pointer; display:inline-flex;
+                                        align-items:center; justify-content:center;
+                                        box-shadow:0 2px 8px rgba(21,88,168,0.3);">
+                                {{ (current_user.name or current_user.email)[0] | upper }}
+                            </button>
 
-                        <a href="{{ url_for('routes.logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+                            <!-- Dropdown panel -->
+                            <div id="avatarDropdown"
+                                style="display:none; position:absolute; right:0; top:calc(100% + 8px);
+                                        background:var(--clr-surface); border:1px solid var(--clr-border);
+                                        border-radius:var(--radius-lg); box-shadow:var(--shadow-lg);
+                                        min-width:200px; z-index:200; overflow:hidden;">
+
+                                <!-- User info header -->
+                                <div style="padding:0.85rem 1rem; border-bottom:1px solid var(--clr-border);
+                                            background:var(--clr-surface-2);">
+                                    <div style="font-weight:600; font-size:0.875rem; color:var(--txt-primary);
+                                                white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                        {{ current_user.name or 'No name set' }}
+                                    </div>
+                                    <div style="font-size:0.78rem; color:var(--txt-muted);
+                                                white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                        {{ current_user.email }}
+                                    </div>
+                                    <span class="nav-badge {{ current_user.role }}" style="margin-top:0.4rem; display:inline-flex;">
+                                        {{ current_user.role | capitalize }}
+                                    </span>
+                                </div>
+
+                                <!-- Menu items -->
+                                <div style="padding:0.4rem 0;">
+                                    <a href="{{ url_for('routes.settings') }}"
+                                    style="display:flex; align-items:center; gap:10px;
+                                            padding:0.6rem 1rem; font-size:0.875rem;
+                                            color:var(--txt-secondary); text-decoration:none;
+                                            transition:background 0.14s;"
+                                    onmouseover="this.style.background='var(--clr-surface-2)'"
+                                    onmouseout="this.style.background=''">
+                                        ⚙ Settings
+                                    </a>
+                                    <a href="{{ url_for('routes.logout') }}"
+                                    style="display:flex; align-items:center; gap:10px;
+                                            padding:0.6rem 1rem; font-size:0.875rem;
+                                            color:var(--clr-danger); text-decoration:none;
+                                            transition:background 0.14s;"
+                                    onmouseover="this.style.background='var(--clr-danger-bg)'"
+                                    onmouseout="this.style.background=''">
+                                        🚪 Logout
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <script>
+                            function toggleDropdown() {
+                                const d = document.getElementById('avatarDropdown');
+                                d.style.display = d.style.display === 'none' ? 'block' : 'none';
+                            }
+
+                            // Close when clicking outside
+                            document.addEventListener('click', function(e) {
+                                const menu = document.getElementById('avatarMenu');
+                                if (menu && !menu.contains(e.target)) {
+                                    document.getElementById('avatarDropdown').style.display = 'none';
+                                }
+                            });
+                        </script>
                     {% else %}
                         <a href="{{ url_for('routes.login') }}"    class="btn btn-outline btn-sm">Login</a>
                         <a href="{{ url_for('routes.register') }}" class="btn btn-primary btn-sm">Register</a>

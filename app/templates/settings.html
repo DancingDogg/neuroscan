@@ -163,6 +163,8 @@
     </div>
 </div>
 
+{# ── REPLACE the entire <script> block at the bottom of settings.html with this ── #}
+
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
 <script>
@@ -178,8 +180,19 @@
             `<div class="alert ${type}" style="margin-bottom:1rem;">
                 <span class="alert-icon">${type === 'danger' ? '✖' : type === 'success' ? '✔' : 'ℹ'}</span>${msg}
              </div>`;
-        // Scroll to alert
         document.getElementById('settingsAlert').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ── Wait for Firebase auth state to be ready ──
+    // This is the key fix: firebase.auth().currentUser is null until
+    // onAuthStateChanged fires. We wrap the password logic inside it.
+    function getFirebaseUser() {
+        return new Promise((resolve) => {
+            const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+                unsubscribe();
+                resolve(user);
+            });
+        });
     }
 
     // ── Change display name ──
@@ -204,9 +217,7 @@
             const data = await res.json();
             if (res.ok) {
                 showAlert('Display name updated successfully.', 'success');
-                // Update the avatar letter and name shown on page
-                document.querySelector('.avatar-letter') &&
-                    (document.querySelector('.avatar-letter').textContent = name[0].toUpperCase());
+                setTimeout(() => { window.location.reload(); }, 500);
             } else {
                 showAlert(data.error || 'Failed to update name.', 'danger');
             }
@@ -220,7 +231,7 @@
 
     // ── Password strength indicator ──
     document.getElementById('newPassword').addEventListener('input', function () {
-        const val = this.value;
+        const val  = this.value;
         const bar  = document.getElementById('pwBar');
         const hint = document.getElementById('pwHint');
         let s = 0;
@@ -247,27 +258,35 @@
         if (!current) { showAlert('Please enter your current password.', 'danger'); return; }
         if (newPw.length < 8) { showAlert('New password must be at least 8 characters.', 'danger'); return; }
         if (newPw !== confirm) { showAlert('New passwords do not match.', 'danger'); return; }
-        if (current === newPw) { showAlert('New password must be different from current password.', 'danger'); return; }
+        if (current === newPw) { showAlert('New password must be different from your current password.', 'danger'); return; }
 
         btn.textContent = 'Updating…';
         btn.disabled = true;
 
         try {
-            // Re-authenticate with Firebase first, then update password
-            const user = firebase.auth().currentUser;
+            // FIX: wait for Firebase auth state to restore before accessing currentUser
+            const user = await getFirebaseUser();
 
             if (!user) {
-                showAlert('Session expired. Please log in again.', 'danger');
-                btn.textContent = 'Update password';
-                btn.disabled = false;
+                // Firebase has no session — re-authenticate using email + current password directly
+                const email = "{{ current_user.email }}";
+                const credential = firebase.auth.EmailAuthProvider.credential(email, current);
+
+                // Sign in to get a fresh Firebase session
+                const cred = await firebase.auth().signInWithEmailAndPassword(email, current);
+                const freshUser = cred.user;
+
+                await freshUser.updatePassword(newPw);
+                showAlert('Password updated successfully.', 'success');
+                document.getElementById('passwordForm').reset();
+                document.getElementById('pwBar').style.width = '0%';
+                document.getElementById('pwHint').textContent = 'Use 8+ characters with letters and numbers';
                 return;
             }
 
-            // Re-authenticate
+            // Firebase session exists — re-authenticate then update
             const credential = firebase.auth.EmailAuthProvider.credential(user.email, current);
             await user.reauthenticateWithCredential(credential);
-
-            // Update password in Firebase Auth
             await user.updatePassword(newPw);
 
             showAlert('Password updated successfully.', 'success');
