@@ -281,33 +281,52 @@ def predict():
 @bp.route("/dashboard/admin")
 @role_required("admin")
 def dashboard_admin():
+    # Fetch users
     users_snap = db.collection("users").get()
     users = []
     for d in users_snap:
         obj = d.to_dict()
         obj["id"] = d.id
         users.append(obj)
-
+ 
+    # Fetch logs
     try:
         logs_snap = db.collection("logs") \
             .order_by("created_at", direction=firestore.Query.DESCENDING) \
             .limit(500).get()
-        logs = []
-        for d in logs_snap:
-            obj = d.to_dict()
-            obj["id"] = d.id
-            logs.append(obj)
+        logs = [dict(d.to_dict(), id=d.id) for d in logs_snap]
     except Exception as e:
         print(f"[WARN] Firestore log ordering failed, sorting in Python: {e}")
         logs_snap = db.collection("logs").limit(500).get()
-        logs = []
-        for d in logs_snap:
-            obj = d.to_dict()
-            obj["id"] = d.id
-            logs.append(obj)
+        logs = [dict(d.to_dict(), id=d.id) for d in logs_snap]
         logs.sort(key=lambda x: x.get("created_at") or 0, reverse=True)
-
-    return render_template('dashboard_admin.html', users=users, logs=logs)
+ 
+    # Fetch all predictions with patient email attached
+    try:
+        preds_snap = db.collection("predictions") \
+            .order_by("created_at", direction=firestore.Query.DESCENDING) \
+            .limit(500).get()
+    except Exception:
+        preds_snap = db.collection("predictions").limit(500).get()
+ 
+    predictions = []
+    for d in preds_snap:
+        obj = d.to_dict()
+        obj["id"] = d.id
+        # Attach patient email
+        try:
+            user_ref = db.collection("users").document(obj["user_id"]).get()
+            obj["patient_email"] = user_ref.to_dict().get("email") if user_ref.exists else obj["user_id"]
+        except Exception:
+            obj["patient_email"] = obj.get("user_id", "Unknown")
+        predictions.append(obj)
+ 
+    return render_template('dashboard_admin.html',
+        users=users,
+        logs=logs,
+        predictions=predictions,
+        total_predictions=len(predictions)
+    )
 
 
 @bp.route("/dashboard/doctor")
@@ -404,6 +423,53 @@ def update_role(user_id):
         flash(f"Failed to update role: {str(e)}", "danger")
     return redirect(url_for('routes.dashboard_admin'))
 
+@bp.route('/admin/delete_user/<user_id>', methods=['POST'])
+@role_required("admin")
+def delete_user(user_id):
+    # Prevent admin from deleting themselves
+    if user_id == current_user.id:
+        return jsonify({'error': 'You cannot delete your own account.'}), 400
+    try:
+        # Delete from Firebase Auth
+        try:
+            auth.delete_user(user_id)
+        except Exception as e:
+            print(f"[WARN] Firebase Auth delete failed (may not exist): {e}")
+ 
+        # Delete from Firestore users collection
+        db.collection("users").document(user_id).delete()
+ 
+        # Delete all their predictions and associated reviews
+        preds = db.collection("predictions").where("user_id", "==", user_id).get()
+        for pred in preds:
+            # Delete reviews for this prediction
+            reviews = db.collection("reviews").where("prediction_id", "==", pred.id).get()
+            for review in reviews:
+                review.reference.delete()
+            pred.reference.delete()
+ 
+        log_event(current_user.id, current_user.role, "delete_user", {"deleted_user_id": user_id})
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+ 
+ 
+@bp.route('/admin/delete_prediction/<prediction_id>', methods=['POST'])
+@role_required("admin")
+def delete_prediction(prediction_id):
+    try:
+        # Delete all reviews linked to this prediction first
+        reviews = db.collection("reviews").where("prediction_id", "==", prediction_id).get()
+        for review in reviews:
+            review.reference.delete()
+ 
+        # Delete the prediction itself
+        db.collection("predictions").document(prediction_id).delete()
+ 
+        log_event(current_user.id, current_user.role, "delete_prediction", {"prediction_id": prediction_id})
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # -----------------------------
 # Doctor: submit review

@@ -5,7 +5,7 @@
 
 <div class="dashboard-header">
     <h1>Admin Dashboard</h1>
-    <p>Manage user roles and monitor system activity logs</p>
+    <p>Manage users, predictions and monitor system activity</p>
 </div>
 
 <!-- Stats -->
@@ -32,143 +32,324 @@
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon danger">📋</div>
+        <div class="stat-icon danger">🧠</div>
         <div class="stat-info">
-            <div class="stat-label">Audit Logs</div>
-            <div class="stat-value">{{ logs | length }}</div>
+            <div class="stat-label">Total Predictions</div>
+            <div class="stat-value">{{ total_predictions }}</div>
         </div>
     </div>
 </div>
 
-<!-- Users table -->
-<div class="card mb-3">
-    <div class="card-header">
-        <h3 class="card-title">User Management</h3>
-        <span class="badge badge-patient">{{ users | length }} users</span>
-    </div>
+<!-- Tab navigation -->
+<div style="display:flex; gap:0.5rem; margin-bottom:1.25rem; border-bottom:2px solid var(--clr-border); padding-bottom:0;">
+    <button onclick="showTab('tab-users')" id="btn-users"
+            class="tab-btn active-tab"
+            style="padding:0.55rem 1.1rem; font-size:0.875rem; font-weight:600;
+                   font-family:var(--font-display); border:none; background:none;
+                   cursor:pointer; border-bottom:2px solid var(--clr-primary);
+                   color:var(--clr-primary); margin-bottom:-2px;">
+        👥 User Management
+    </button>
+    <button onclick="showTab('tab-predictions')" id="btn-predictions"
+            class="tab-btn"
+            style="padding:0.55rem 1.1rem; font-size:0.875rem; font-weight:600;
+                   font-family:var(--font-display); border:none; background:none;
+                   cursor:pointer; border-bottom:2px solid transparent;
+                   color:var(--txt-muted); margin-bottom:-2px;">
+        🧠 Predictions
+    </button>
+    <button onclick="showTab('tab-logs')" id="btn-logs"
+            class="tab-btn"
+            style="padding:0.55rem 1.1rem; font-size:0.875rem; font-weight:600;
+                   font-family:var(--font-display); border:none; background:none;
+                   cursor:pointer; border-bottom:2px solid transparent;
+                   color:var(--txt-muted); margin-bottom:-2px;">
+        📋 Audit Logs
+    </button>
+</div>
 
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+<!-- ══ TAB 1: USER MANAGEMENT ══ -->
+<div id="tab-users">
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">User Management</h3>
+            <span class="badge badge-patient">{{ users | length }} users</span>
+        </div>
 
-    <div class="table-wrapper">
-        <table class="data-table" id="usersTable">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Email</th>
-                    <th>Current Role</th>
-                    <th>Created At</th>
-                    <th>Update Role</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for u in users %}
-                <tr>
-                    <!-- ISSUE 4 FIX: Don't use loop.index for the # column.
-                         Instead use an empty cell and let DataTables' rowReorder
-                         or simply disable sorting on column 0.
-                         We set the actual number via DataTables drawCallback below. -->
-                    <td class="row-num"></td>
-                    <td>
-                        <span style="font-weight: 500; font-size: 0.875rem;">{{ u.email }}</span>
-                    </td>
-                    <td>
-                        <span class="badge badge-{{ u.role }}">{{ u.role | capitalize }}</span>
-                    </td>
-                    <td style="color: var(--txt-muted); font-size: 0.85rem;">
-                        {{ u.created_at.strftime("%d %b %Y") if u.created_at else "N/A" }}
-                    </td>
-                    <td>
-                        <form action="{{ url_for('routes.update_role', user_id=u.id) }}"
-                              method="POST"
-                              style="display: flex; align-items: center; gap: 0.5rem;">
-                            <select name="role" class="form-control"
-                                    style="width: auto; min-width: 120px; padding: 0.3rem 0.6rem; font-size: 0.85rem;">
-                                <option value="patient"  {% if u.role == 'patient'  %}selected{% endif %}>Patient</option>
-                                <option value="doctor"   {% if u.role == 'doctor'   %}selected{% endif %}>Doctor</option>
-                                <option value="admin"    {% if u.role == 'admin'    %}selected{% endif %}>Admin</option>
-                            </select>
-                            <button type="submit" class="btn btn-primary btn-sm">Update</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+
+        <div class="table-wrapper">
+            <table class="data-table" id="usersTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                        <th>Update Role</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td class="row-num"></td>
+                        <td style="font-size:0.875rem; color:var(--txt-primary); font-weight:500;">
+                            {{ u.name or '—' }}
+                        </td>
+                        <td style="font-size:0.875rem;">{{ u.email }}</td>
+                        <td>
+                            <span class="badge badge-{{ u.role }}">{{ u.role | capitalize }}</span>
+                        </td>
+                        <td style="color:var(--txt-muted); font-size:0.85rem;">
+                            {{ u.created_at.strftime("%d %b %Y") if u.created_at else "N/A" }}
+                        </td>
+                        <td>
+                            <form action="{{ url_for('routes.update_role', user_id=u.id) }}"
+                                  method="POST"
+                                  style="display:flex; align-items:center; gap:0.5rem;">
+                                <select name="role" class="form-control"
+                                        style="width:auto; min-width:110px; padding:0.3rem 0.6rem; font-size:0.85rem;">
+                                    <option value="patient" {% if u.role == 'patient' %}selected{% endif %}>Patient</option>
+                                    <option value="doctor"  {% if u.role == 'doctor'  %}selected{% endif %}>Doctor</option>
+                                    <option value="admin"   {% if u.role == 'admin'   %}selected{% endif %}>Admin</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm">Update</button>
+                            </form>
+                        </td>
+                        <td>
+                            {% if u.id != current_user.id %}
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="confirmDeleteUser('{{ u.id }}', '{{ u.email }}')">
+                                🗑 Delete
+                            </button>
+                            {% else %}
+                            <span style="font-size:0.78rem; color:var(--txt-muted);">You</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- Audit logs -->
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Audit Logs</h3>
-        <span style="font-size: 0.82rem; color: var(--txt-muted);">Most recent first</span>
-    </div>
+<!-- ══ TAB 2: PREDICTIONS ══ -->
+<div id="tab-predictions" style="display:none;">
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">All Predictions</h3>
+            <span class="badge badge-patient">{{ total_predictions }} total</span>
+        </div>
 
-    {% if logs %}
-    <div class="table-wrapper">
-        <table class="data-table" id="logsTable">
-            <thead>
-                <tr>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th>Action</th>
-                    <th>Details</th>
-                    <th>Time</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for l in logs %}
-                <tr>
-                    <td style="font-size: 0.82rem; color: var(--txt-secondary); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        {{ l.user_id }}
-                    </td>
-                    <td><span class="badge badge-{{ l.role }}">{{ l.role | capitalize }}</span></td>
-                    <td>
-                        <span style="font-size: 0.82rem; font-weight: 500; color: var(--txt-primary);">
-                            {{ l.action }}
-                        </span>
-                    </td>
-                    <td style="font-size: 0.8rem; color: var(--txt-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        {{ l.details }}
-                    </td>
-                    <td style="color: var(--txt-muted); font-size: 0.82rem; white-space: nowrap;">
-                        {{ l.created_at.strftime("%d %b %Y, %H:%M") if l.created_at else "N/A" }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% if predictions %}
+        <div class="table-wrapper">
+            <table class="data-table" id="predsTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Patient</th>
+                        <th>Result</th>
+                        <th>Model</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in predictions %}
+                    <tr>
+                        <td class="row-num"></td>
+                        <td style="font-size:0.82rem; color:var(--txt-secondary);">{{ p.patient_email }}</td>
+                        <td>
+                            <span class="badge {{ 'badge-clot' if p.result == 'clot' else 'badge-normal' }}">
+                                {{ '⚠' if p.result == 'clot' else '✓' }} {{ p.result | capitalize }}
+                            </span>
+                        </td>
+                        <td style="font-size:0.82rem; font-weight:500;">
+                            {{ p.model_used | upper if p.model_used else 'N/A' }}
+                        </td>
+                        <td>
+                            <span class="badge {{ 'badge-reviewed' if p.status == 'reviewed' else 'badge-pending' }}">
+                                {{ '✔ Reviewed' if p.status == 'reviewed' else '⏳ Pending' }}
+                            </span>
+                        </td>
+                        <td style="color:var(--txt-muted); font-size:0.82rem;">
+                            {{ p.created_at.strftime("%d %b %Y, %H:%M") if p.created_at else "N/A" }}
+                        </td>
+                        <td>
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="confirmDeletePrediction('{{ p.id }}', '{{ p.patient_email }}')">
+                                🗑 Delete
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🧠</div>
+            <div class="empty-title">No predictions yet</div>
+            <div class="empty-desc">Predictions will appear here once patients start uploading MRI scans.</div>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <div class="empty-title">No logs yet</div>
-        <div class="empty-desc">System activity will appear here once users start interacting.</div>
-    </div>
-    {% endif %}
 </div>
+
+<!-- ══ TAB 3: AUDIT LOGS ══ -->
+<div id="tab-logs" style="display:none;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Audit Logs</h3>
+            <span style="font-size:0.82rem; color:var(--txt-muted);">Most recent first</span>
+        </div>
+
+        {% if logs %}
+        <div class="table-wrapper">
+            <table class="data-table" id="logsTable">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in logs %}
+                    <tr>
+                        <td style="font-size:0.82rem; color:var(--txt-secondary); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            {{ l.user_id }}
+                        </td>
+                        <td><span class="badge badge-{{ l.role }}">{{ l.role | capitalize }}</span></td>
+                        <td style="font-size:0.82rem; font-weight:500; color:var(--txt-primary);">{{ l.action }}</td>
+                        <td style="font-size:0.8rem; color:var(--txt-muted); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            {{ l.details }}
+                        </td>
+                        <td style="color:var(--txt-muted); font-size:0.82rem; white-space:nowrap;">
+                            {{ l.created_at.strftime("%d %b %Y, %H:%M") if l.created_at else "N/A" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <div class="empty-title">No logs yet</div>
+            <div class="empty-desc">System activity will appear here once users start interacting.</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+
+<!-- ══ Delete User Confirm Modal ══ -->
+<div class="modal-backdrop" id="deleteUserModal">
+    <div class="modal-box" style="max-width:400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Delete User</h3>
+            <button class="modal-close" onclick="closeModal('deleteUserModal')">✕</button>
+        </div>
+        <p style="font-size:0.875rem; color:var(--txt-secondary); margin-bottom:0.5rem;">
+            Are you sure you want to delete this user?
+        </p>
+        <p id="deleteUserEmail" style="font-weight:600; color:var(--clr-danger); font-size:0.875rem; margin-bottom:1.25rem;"></p>
+        <div class="alert warning" style="margin-bottom:1.25rem;">
+            <span class="alert-icon">⚠</span>
+            <span style="font-size:0.82rem;">This will permanently delete the user from Firebase Auth and Firestore. This action cannot be undone.</span>
+        </div>
+        <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+            <button onclick="closeModal('deleteUserModal')" class="btn btn-outline">Cancel</button>
+            <button onclick="executeDeleteUser()" class="btn btn-danger" id="confirmDeleteUserBtn">Delete User</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ Delete Prediction Confirm Modal ══ -->
+<div class="modal-backdrop" id="deletePredModal">
+    <div class="modal-box" style="max-width:400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Delete Prediction</h3>
+            <button class="modal-close" onclick="closeModal('deletePredModal')">✕</button>
+        </div>
+        <p style="font-size:0.875rem; color:var(--txt-secondary); margin-bottom:0.5rem;">
+            Delete this prediction from <span id="deletePredEmail" style="font-weight:600;"></span>?
+        </p>
+        <div class="alert warning" style="margin-bottom:1.25rem;">
+            <span class="alert-icon">⚠</span>
+            <span style="font-size:0.82rem;">This will also delete all associated reviews. Cannot be undone.</span>
+        </div>
+        <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+            <button onclick="closeModal('deletePredModal')" class="btn btn-outline">Cancel</button>
+            <button onclick="executeDeletePrediction()" class="btn btn-danger" id="confirmDeletePredBtn">Delete</button>
+        </div>
+    </div>
+</div>
+
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
 <script>
+    // ── Tab switching ──
+    function showTab(tabId) {
+        ['tab-users', 'tab-predictions', 'tab-logs'].forEach(id => {
+            document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
+        });
+        ['btn-users', 'btn-predictions', 'btn-logs'].forEach(id => {
+            const btn = document.getElementById(id);
+            const isActive = 'btn-' + tabId.replace('tab-', '') === id;
+            btn.style.borderBottomColor = isActive ? 'var(--clr-primary)' : 'transparent';
+            btn.style.color = isActive ? 'var(--clr-primary)' : 'var(--txt-muted)';
+        });
+    }
+
+    // ── Modal helpers ──
+    function openModal(id)  { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    document.querySelectorAll('.modal-backdrop').forEach(el => {
+        el.addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('open');
+        });
+    });
+
+    // ── DataTables ──
     $(document).ready(function () {
-        // ISSUE 4 FIX: disable sorting on the # column (index 0),
-        // and use drawCallback to renumber rows sequentially after every sort/filter/page change.
-        // This way, row numbers always match what's visually shown.
-        var usersTable = $('#usersTable').DataTable({
+        $('#usersTable').DataTable({
             pageLength: 10,
-            order: [[3, "asc"]],   // default sort by Created At ascending
+            order: [[4, "asc"]],
             columnDefs: [
-                { orderable: false, targets: [0, 4] },  // # and Update Role not sortable
-                { searchable: false, targets: 0 }        // don't search the # column
+                { orderable: false, targets: [0, 5, 6] },
+                { searchable: false, targets: 0 }
             ],
             drawCallback: function() {
-                // Renumber visible rows sequentially
                 this.api().column(0, { search: 'applied', order: 'applied' }).nodes().each(function(cell, i) {
                     cell.innerHTML = i + 1;
                 });
             }
         });
+
+        if (document.getElementById('predsTable')) {
+            $('#predsTable').DataTable({
+                pageLength: 10,
+                order: [[5, "desc"]],
+                columnDefs: [
+                    { orderable: false, targets: [0, 6] },
+                    { searchable: false, targets: 0 }
+                ],
+                drawCallback: function() {
+                    this.api().column(0, { search: 'applied', order: 'applied' }).nodes().each(function(cell, i) {
+                        cell.innerHTML = i + 1;
+                    });
+                }
+            });
+        }
 
         if (document.getElementById('logsTable')) {
             $('#logsTable').DataTable({
@@ -177,5 +358,79 @@
             });
         }
     });
+
+    // ── Delete User ──
+    let pendingDeleteUserId = null;
+
+    function confirmDeleteUser(userId, email) {
+        pendingDeleteUserId = userId;
+        document.getElementById('deleteUserEmail').textContent = email;
+        openModal('deleteUserModal');
+    }
+
+    async function executeDeleteUser() {
+        if (!pendingDeleteUserId) return;
+        const btn = document.getElementById('confirmDeleteUserBtn');
+        btn.textContent = 'Deleting…';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/admin/delete_user/${pendingDeleteUserId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeModal('deleteUserModal');
+                window.location.reload();
+            } else {
+                alert(data.error || 'Failed to delete user.');
+            }
+        } catch (err) {
+            alert('Something went wrong.');
+        } finally {
+            btn.textContent = 'Delete User';
+            btn.disabled = false;
+            pendingDeleteUserId = null;
+        }
+    }
+
+    // ── Delete Prediction ──
+    let pendingDeletePredId = null;
+
+    function confirmDeletePrediction(predId, email) {
+        pendingDeletePredId = predId;
+        document.getElementById('deletePredEmail').textContent = email;
+        openModal('deletePredModal');
+    }
+
+    async function executeDeletePrediction() {
+        if (!pendingDeletePredId) return;
+        const btn = document.getElementById('confirmDeletePredBtn');
+        btn.textContent = 'Deleting…';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/admin/delete_prediction/${pendingDeletePredId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeModal('deletePredModal');
+                window.location.reload();
+            } else {
+                alert(data.error || 'Failed to delete prediction.');
+            }
+        } catch (err) {
+            alert('Something went wrong.');
+        } finally {
+            btn.textContent = 'Delete';
+            btn.disabled = false;
+            pendingDeletePredId = null;
+        }
+    }
 </script>
 {% endblock %}
