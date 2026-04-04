@@ -82,6 +82,14 @@ Visit `http://127.0.0.1:5000`
 
 *Evaluated on a held-out test set of 34 MRI scans from Hospital Pengajar UPM (HPUPM).*
 
+## Model Weights
+
+The trained model weights are not included in this repository due to file size constraints.
+
+Download from Google Drive: [Model Weights (Google Drive)](https://drive.google.com/drive/folders/1xQIKvAHJmykPyx3CiTvG2_-CQEpx4_UW?usp=drive_link)
+
+After downloading, place all `.pth` files into `app/ml/model_files/`
+
 ## Project Structure
 
 ```
