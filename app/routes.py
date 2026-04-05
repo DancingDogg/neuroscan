@@ -215,11 +215,6 @@ def about():
 def comparison():
     return render_template('comparison.html')
 
-@bp.route('/get_csrf_token', methods=['GET'])
-def get_csrf_token():
-    from flask_wtf.csrf import generate_csrf
-    return jsonify({'csrf_token': generate_csrf()})
-
 
 # -------------------------------
 # Prediction

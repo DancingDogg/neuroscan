@@ -7,6 +7,23 @@
     <p>Upload a brain MRI scan and select a model to receive an AI-powered classification with explainability heatmap.</p>
 </div>
 
+<!-- ── Toast container ── -->
+<div id="toastContainer" style="position:fixed; bottom:1.5rem; right:1.5rem; z-index:500;
+     display:flex; flex-direction:column; gap:0.6rem; pointer-events:none;"></div>
+
+<!-- ── Full-page loading overlay ── -->
+<div id="loadingOverlay" style="display:none; position:fixed; inset:0;
+     background:rgba(10,20,40,0.6); backdrop-filter:blur(4px);
+     z-index:400; align-items:center; justify-content:center; flex-direction:column; gap:1.25rem;">
+    <div style="width:56px; height:56px; border:4px solid rgba(255,255,255,0.2);
+                border-top-color:#fff; border-radius:50%;
+                animation:spin 0.8s linear infinite;"></div>
+    <div style="color:#fff; font-size:1rem; font-weight:600; font-family:var(--font-display);">
+        Running prediction…
+    </div>
+    <div style="color:rgba(255,255,255,0.65); font-size:0.82rem;" id="loadingModel"></div>
+</div>
+
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start;">
 
     <!-- ── Upload form ── -->
@@ -25,10 +42,28 @@
                     <label class="form-label">MRI Scan Image</label>
                     <div class="file-input-wrapper" id="dropzone">
                         {{ form.file(id="fileInput", accept=".jpg,.jpeg,.png") }}
-                        <div class="file-icon">🧠</div>
-                        <div class="file-label">Drop your MRI scan here</div>
-                        <div class="file-sublabel">or click to browse · JPG, JPEG, PNG</div>
+                        <div class="file-icon" id="dropzoneIcon">🧠</div>
+                        <div class="file-label" id="dropzoneLabel">Drop your MRI scan here</div>
+                        <div class="file-sublabel" id="dropzoneSub">or click to browse · JPG, JPEG, PNG</div>
                         <div class="file-chosen" id="fileChosen" style="display:none;"></div>
+                    </div>
+
+                    <!-- MRI Preview — shown after file selected -->
+                    <div id="previewContainer" style="display:none; margin-top:0.75rem;
+                         border-radius:var(--radius-lg); overflow:hidden;
+                         border:1px solid var(--clr-border); position:relative;">
+                        <img id="previewImg" src="" alt="MRI Preview"
+                             style="width:100%; max-height:220px; object-fit:contain;
+                                    background:#0a0a0a; display:block;">
+                        <div style="position:absolute; top:0.5rem; left:0.5rem;">
+                            <span class="badge badge-patient" style="font-size:0.7rem;">Preview</span>
+                        </div>
+                        <button type="button" onclick="clearPreview()"
+                                style="position:absolute; top:0.5rem; right:0.5rem;
+                                       width:26px; height:26px; border-radius:50%;
+                                       background:rgba(0,0,0,0.55); border:none; cursor:pointer;
+                                       color:#fff; font-size:0.85rem; display:flex;
+                                       align-items:center; justify-content:center;">✕</button>
                     </div>
                 </div>
 
@@ -118,9 +153,15 @@
 
             <!-- Result banner -->
             {% set pred = result.predicted_class %}
-            <div class="result-banner {{ 'clot' if pred == 'clot' else 'normal' }}">
-                <span class="result-banner-icon">{{ '⚠️' if pred == 'clot' else '✅' }}</span>
-                <div>
+            {% set max_prob = result.probabilities.values() | max %}
+
+            <div class="result-banner {{ 'clot' if pred == 'clot' else 'normal' }}"
+                 {% if pred == 'clot' %}style="animation: clotPulse 2s ease-in-out infinite;"{% endif %}>
+                <span class="result-banner-icon"
+                      {% if pred == 'clot' %}style="animation: iconBounce 1s ease-in-out infinite;"{% endif %}>
+                    {{ '⚠️' if pred == 'clot' else '✅' }}
+                </span>
+                <div style="flex:1;">
                     <div class="result-banner-label">
                         Prediction — {{ selected_model | upper }}
                     </div>
@@ -129,7 +170,27 @@
                         {% if pred == 'clot' %}Detected{% else %}Not Detected{% endif %}
                     </div>
                 </div>
+                <!-- View in Dashboard button -->
+                <a href="{{ url_for('routes.dashboard_patient') }}"
+                   class="btn btn-sm"
+                   style="background:rgba(255,255,255,0.2); color:#fff;
+                          border:1px solid rgba(255,255,255,0.35);
+                          white-space:nowrap; flex-shrink:0;
+                          backdrop-filter:blur(4px);">
+                    View in Dashboard →
+                </a>
             </div>
+
+            <!-- Confidence warning if < 70% -->
+            {% if max_prob < 0.70 %}
+            <div class="alert warning" style="margin-bottom:1rem;">
+                <span class="alert-icon">⚠</span>
+                <span style="font-size:0.875rem;">
+                    <strong>Low confidence ({{ (max_prob * 100) | round(1) }}%)</strong> —
+                    This prediction has low certainty. Please consult a qualified specialist before acting on this result.
+                </span>
+            </div>
+            {% endif %}
 
             <!-- Probabilities -->
             <div class="card mb-2">
@@ -142,7 +203,8 @@
                         <span class="prob-label">{{ cls | capitalize }}</span>
                         <div class="prob-track">
                             <div class="prob-fill {{ 'clot' if cls == 'clot' else 'normal' }}"
-                                 data-width="{{ (prob * 100) | round(1) }}">
+                                 data-width="{{ (prob * 100) | round(1) }}"
+                                 style="width:0%; transition: width 1s cubic-bezier(0.4,0,0.2,1);">
                             </div>
                         </div>
                         <span class="prob-pct">{{ (prob * 100) | round(1) }}%</span>
@@ -207,30 +269,138 @@
 
 </div>
 
+<style>
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes clotPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(185,28,28,0.3); }
+    50%       { box-shadow: 0 0 0 10px rgba(185,28,28,0); }
+}
+@keyframes iconBounce {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.15); }
+}
+@keyframes toastIn {
+    from { opacity:0; transform:translateX(100%); }
+    to   { opacity:1; transform:translateX(0); }
+}
+@keyframes toastOut {
+    from { opacity:1; transform:translateX(0); }
+    to   { opacity:0; transform:translateX(100%); }
+}
+</style>
+
 <script>
-    // File name display
-    const fileInput = document.getElementById('fileInput');
-    const fileChosen = document.getElementById('fileChosen');
+    // ── Toast notification system ──
+    function showToast(msg, type = 'success', duration = 3500) {
+        const container = document.getElementById('toastContainer');
+        const icons = { success: '✔', danger: '✖', warning: '⚠', info: 'ℹ' };
+        const colors = {
+            success: { bg: 'var(--clr-success-bg)', color: 'var(--clr-success)', border: '#a3d9bb' },
+            danger:  { bg: 'var(--clr-danger-bg)',  color: 'var(--clr-danger)',  border: '#fca5a5' },
+            warning: { bg: 'var(--clr-warning-bg)', color: 'var(--clr-warning)', border: '#fcd34d' },
+            info:    { bg: 'var(--clr-info-bg)',     color: 'var(--clr-info)',    border: '#93c5fd' },
+        };
+        const c = colors[type] || colors.info;
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            display:flex; align-items:center; gap:10px;
+            padding:0.75rem 1rem; border-radius:var(--radius-md);
+            background:${c.bg}; color:${c.color};
+            border:1px solid ${c.border};
+            box-shadow:var(--shadow-lg);
+            font-size:0.875rem; font-family:var(--font-display);
+            font-weight:500; pointer-events:auto;
+            animation:toastIn 0.3s ease both;
+            min-width:240px; max-width:340px;
+        `;
+        toast.innerHTML = `<span style="font-size:1rem;flex-shrink:0;">${icons[type]||'ℹ'}</span><span>${msg}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.animation = 'toastOut 0.3s ease both';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // ── File input — preview + file name ──
+    const fileInput   = document.getElementById('fileInput');
+    const fileChosen  = document.getElementById('fileChosen');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImg  = document.getElementById('previewImg');
+    const dropzoneIcon  = document.getElementById('dropzoneIcon');
+    const dropzoneLabel = document.getElementById('dropzoneLabel');
+    const dropzoneSub   = document.getElementById('dropzoneSub');
+
     fileInput.addEventListener('change', () => {
-        if (fileInput.files.length > 0) {
-            fileChosen.textContent = '✔ ' + fileInput.files[0].name;
-            fileChosen.style.display = 'block';
-        }
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        // Show file name
+        fileChosen.textContent = '✔ ' + file.name;
+        fileChosen.style.display = 'block';
+
+        // Show MRI preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImg.src = e.target.result;
+            previewContainer.style.display = 'block';
+            dropzoneIcon.style.display  = 'none';
+            dropzoneLabel.style.display = 'none';
+            dropzoneSub.style.display   = 'none';
+        };
+        reader.readAsDataURL(file);
     });
 
-    // Loading state on submit
-    document.getElementById('predictForm').addEventListener('submit', function() {
+    function clearPreview() {
+        fileInput.value = '';
+        previewContainer.style.display = 'none';
+        previewImg.src = '';
+        fileChosen.style.display = 'none';
+        dropzoneIcon.style.display  = '';
+        dropzoneLabel.style.display = '';
+        dropzoneSub.style.display   = '';
+    }
+
+    // ── Loading overlay on submit ──
+    document.getElementById('predictForm').addEventListener('submit', function(e) {
+        if (!fileInput.files.length) {
+            e.preventDefault();
+            showToast('Please upload an MRI scan first.', 'warning');
+            return;
+        }
+        const selectedModel = document.querySelector('input[name="model"]:checked');
+        const modelName = selectedModel ? selectedModel.value.toUpperCase() : 'model';
+
+        const overlay = document.getElementById('loadingOverlay');
+        document.getElementById('loadingModel').textContent = 'Using ' + modelName;
+        overlay.style.display = 'flex';
+
         const btn = document.getElementById('submitBtn');
         btn.textContent = '⏳ Processing…';
         btn.disabled = true;
     });
 
-    // Apply probability bar widths from data attributes
-    document.querySelectorAll('.prob-fill[data-width]').forEach(el => {
-        el.style.width = el.dataset.width + '%';
+    // ── Animate confidence bars from 0 ──
+    window.addEventListener('load', () => {
+        // Small delay so user sees the bars animate in
+        setTimeout(() => {
+            document.querySelectorAll('.prob-fill[data-width]').forEach(el => {
+                el.style.width = el.dataset.width + '%';
+            });
+        }, 300);
+
+        // Show toast if result is present
+        {% if result %}
+            {% if result.predicted_class == 'clot' %}
+                showToast('⚠️ Clot detected — please consult a doctor.', 'danger', 5000);
+            {% else %}
+                showToast('✅ No clot detected.', 'success', 4000);
+            {% endif %}
+        {% endif %}
     });
 
-    // Scroll to results if present
+    // ── Scroll to results if present ──
     const resultsEl = document.getElementById('results');
     if (resultsEl) {
         resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
