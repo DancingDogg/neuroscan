@@ -28,3 +28,6 @@ transformers>=4.38.0
 
 # AI Chatbot
 anthropic>=0.40.0
+
+# PDF medical report export
+reportlab>=4.0.0

@@ -1,6 +1,7 @@
 import os
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, current_app, flash, jsonify, abort
+from io import BytesIO
+from flask import send_file, Blueprint, render_template, request, redirect, url_for, current_app, flash, jsonify, abort
 from flask_login import login_user, login_required, logout_user, current_user
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -511,6 +512,244 @@ def dashboard_patient():
 
     return render_template('dashboard_patient.html', predictions=predictions)
 
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+
+@bp.route('/dashboard/patient/export_pdf')
+@role_required('patient')
+def export_pdf():
+    # Fetch predictions
+    try:
+        preds_snap = db.collection("predictions") \
+            .where("user_id", "==", current_user.id) \
+            .order_by("created_at", direction=firestore.Query.DESCENDING) \
+            .limit(200).get()
+    except Exception:
+        preds_snap = db.collection("predictions") \
+            .where("user_id", "==", current_user.id) \
+            .limit(200).get()
+
+    # Batch fetch reviews
+    predictions = []
+    pred_ids = []
+    raw_preds = []
+    for d in preds_snap:
+        obj = d.to_dict()
+        obj["id"] = d.id
+        raw_preds.append(obj)
+        pred_ids.append(d.id)
+
+    reviews_by_pred = {pid: [] for pid in pred_ids}
+    doctor_ids = set()
+    if pred_ids:
+        try:
+            reviews_snap = db.collection("reviews") \
+                .where("prediction_id", "in", pred_ids[:30]).get()
+            for r in reviews_snap:
+                rdict = r.to_dict()
+                pid = rdict.get("prediction_id")
+                if pid in reviews_by_pred:
+                    reviews_by_pred[pid].append(rdict)
+                if rdict.get("doctor_id"):
+                    doctor_ids.add(rdict["doctor_id"])
+        except Exception:
+            pass
+
+    doctor_cache = {}
+    for did in doctor_ids:
+        try:
+            doc = db.collection("users").document(did).get()
+            if doc.exists:
+                doctor_cache[did] = doc.to_dict()
+        except Exception:
+            pass
+
+    for obj in raw_preds:
+        reviews = reviews_by_pred.get(obj["id"], [])
+        for r in reviews:
+            doctor = doctor_cache.get(r.get("doctor_id"), {})
+            r["doctor_email"] = doctor.get("email", r.get("doctor_id", "Unknown"))
+        obj["reviews"] = reviews
+        predictions.append(obj)
+
+    # ── Build PDF ──
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2*cm, leftMargin=2*cm,
+        topMargin=2*cm, bottomMargin=2*cm
+    )
+
+    styles = getSampleStyleSheet()
+    PRIMARY = colors.HexColor('#1558a8')
+    DANGER  = colors.HexColor('#b91c1c')
+    SUCCESS = colors.HexColor('#0f7a3e')
+    MUTED   = colors.HexColor('#6b7280')
+    LIGHT   = colors.HexColor('#f0f4ff')
+
+    title_style = ParagraphStyle('Title',
+        fontSize=20, textColor=PRIMARY, fontName='Helvetica-Bold',
+        spaceAfter=4, alignment=TA_LEFT)
+    sub_style = ParagraphStyle('Sub',
+        fontSize=10, textColor=MUTED, fontName='Helvetica',
+        spaceAfter=2)
+    section_style = ParagraphStyle('Section',
+        fontSize=12, textColor=PRIMARY, fontName='Helvetica-Bold',
+        spaceBefore=12, spaceAfter=6)
+    body_style = ParagraphStyle('Body',
+        fontSize=9, textColor=colors.HexColor('#374151'),
+        fontName='Helvetica', spaceAfter=3)
+    note_style = ParagraphStyle('Note',
+        fontSize=8, textColor=MUTED, fontName='Helvetica-Oblique',
+        spaceAfter=2)
+
+    elements = []
+
+    # Header
+    elements.append(Paragraph('NeuroScan', title_style))
+    elements.append(Paragraph('AI-Powered Ischemic Stroke Detection System', sub_style))
+    elements.append(Paragraph('Prediction History Report', sub_style))
+    elements.append(HRFlowable(width='100%', thickness=1.5, color=PRIMARY, spaceAfter=10))
+
+    # Patient info
+    from datetime import datetime
+    now = datetime.now().strftime("%d %b %Y, %H:%M")
+    info_data = [
+        ['Patient', current_user.name or current_user.email],
+        ['Email', current_user.email],
+        ['Generated', now],
+        ['Total Scans', str(len(predictions))],
+    ]
+    info_table = Table(info_data, colWidths=[3.5*cm, 12*cm])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME',    (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTNAME',    (1,0), (1,-1), 'Helvetica'),
+        ('FONTSIZE',    (0,0), (-1,-1), 9),
+        ('TEXTCOLOR',   (0,0), (0,-1), MUTED),
+        ('TEXTCOLOR',   (1,0), (1,-1), colors.HexColor('#111827')),
+        ('ROWBACKGROUNDS', (0,0), (-1,-1), [colors.white, LIGHT]),
+        ('TOPPADDING',  (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.4*cm))
+
+    # Disclaimer
+    elements.append(Paragraph(
+        '⚠ Disclaimer: This report is generated by an AI research prototype and is NOT a substitute '
+        'for professional medical diagnosis. All results should be reviewed by a qualified radiologist.',
+        note_style))
+    elements.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb'), spaceAfter=8))
+
+    if not predictions:
+        elements.append(Paragraph('No predictions found.', body_style))
+    else:
+        elements.append(Paragraph(f'Prediction Records ({len(predictions)} total)', section_style))
+
+        # Table header
+        table_data = [['#', 'Date', 'Model', 'AI Result', 'Confidence', 'Status', 'Reviews']]
+
+        for i, p in enumerate(predictions, 1):
+            date = p['created_at'].strftime("%d %b %Y") if p.get('created_at') else 'N/A'
+            model = (p.get('model_used') or 'N/A').upper()
+            result = (p.get('result') or 'N/A').capitalize()
+
+            # Confidence
+            conf = 'N/A'
+            if p.get('probabilities') and isinstance(p['probabilities'], dict):
+                max_prob = max(p['probabilities'].values())
+                conf = f"{round(max_prob * 100, 1)}%"
+
+            status = 'Reviewed' if p.get('status') == 'reviewed' else 'Pending'
+            review_count = len(p.get('reviews', []))
+            reviews_str = f"{review_count} review(s)" if review_count else "None"
+
+            table_data.append([str(i), date, model, result, conf, status, reviews_str])
+
+        col_widths = [0.8*cm, 2.8*cm, 3*cm, 2.2*cm, 2.2*cm, 2.2*cm, 2.8*cm]
+        pred_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        pred_table.setStyle(TableStyle([
+            # Header row
+            ('BACKGROUND',   (0,0), (-1,0), PRIMARY),
+            ('TEXTCOLOR',    (0,0), (-1,0), colors.white),
+            ('FONTNAME',     (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',     (0,0), (-1,0), 8),
+            ('ALIGN',        (0,0), (-1,0), 'CENTER'),
+            # Body rows
+            ('FONTNAME',     (0,1), (-1,-1), 'Helvetica'),
+            ('FONTSIZE',     (0,1), (-1,-1), 8),
+            ('ALIGN',        (0,1), (-1,-1), 'CENTER'),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
+            ('TOPPADDING',   (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING',(0,0), (-1,-1), 5),
+            ('GRID',         (0,0), (-1,-1), 0.3, colors.HexColor('#e5e7eb')),
+        ]))
+        elements.append(pred_table)
+
+        # Colour result cells
+        for i, p in enumerate(predictions, 1):
+            result = p.get('result', '')
+            if result == 'clot':
+                pred_table.setStyle(TableStyle([
+                    ('TEXTCOLOR', (3, i), (3, i), DANGER),
+                    ('FONTNAME',  (3, i), (3, i), 'Helvetica-Bold'),
+                ]))
+            else:
+                pred_table.setStyle(TableStyle([
+                    ('TEXTCOLOR', (3, i), (3, i), SUCCESS),
+                ]))
+
+        # Doctor reviews detail
+        has_reviews = any(p.get('reviews') for p in predictions)
+        if has_reviews:
+            elements.append(Spacer(1, 0.5*cm))
+            elements.append(Paragraph('Doctor Reviews Detail', section_style))
+
+            for p in predictions:
+                if not p.get('reviews'):
+                    continue
+                date = p['created_at'].strftime("%d %b %Y") if p.get('created_at') else 'N/A'
+                result = (p.get('result') or 'N/A').capitalize()
+                elements.append(Paragraph(
+                    f"<b>{date}</b> · {(p.get('model_used') or 'N/A').upper()} · Result: {result}",
+                    body_style))
+                for r in p['reviews']:
+                    decision = '✔ Agrees' if r.get('decision') == 'agree' else '✖ Disagrees'
+                    doc_email = r.get('doctor_email', 'Unknown')
+                    notes = r.get('notes', '')
+                    rev_date = r['created_at'].strftime("%d %b %Y, %H:%M") if r.get('created_at') else ''
+                    line = f"&nbsp;&nbsp;&nbsp;Dr. {doc_email} — {decision}"
+                    if notes:
+                        line += f': "{notes}"'
+                    if rev_date:
+                        line += f" <font color='#9ca3af'>({rev_date})</font>"
+                    elements.append(Paragraph(line, note_style))
+                elements.append(Spacer(1, 0.2*cm))
+
+    # Footer note
+    elements.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb'), spaceBefore=12))
+    elements.append(Paragraph(
+        'NeuroScan FYP · Universiti Tunku Abdul Rahman · For research purposes only.',
+        note_style))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    from flask import send_file
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'neuroscan_report_{current_user.id[:8]}.pdf'
+    )
 
 # -----------------------------
 # Admin: update user role

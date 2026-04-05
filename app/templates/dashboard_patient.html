@@ -64,7 +64,16 @@
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Prediction History</h3>
-        <a href="{{ url_for('routes.predict') }}" class="btn btn-primary btn-sm">+ New Prediction</a>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            {% if predictions %}
+            <a href="{{ url_for('routes.export_pdf') }}"
+            class="btn btn-outline btn-sm"
+            style="display:inline-flex; align-items:center; gap:6px;">
+                📄 Export PDF
+            </a>
+            {% endif %}
+            <a href="{{ url_for('routes.predict') }}" class="btn btn-primary btn-sm">+ New Prediction</a>
+        </div>
     </div>
 
     {% if predictions %}
