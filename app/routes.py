@@ -11,6 +11,9 @@ from .models import User
 from .ml.model_loader import predict_stroke_risk
 from firebase_admin import auth, storage, firestore, exceptions
 import anthropic as anthropic_sdk
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 bp = Blueprint('routes', __name__)
 db = firestore.client()
@@ -31,6 +34,72 @@ def log_event(user_id, role, action, details=None):
         "details": details or {},
         "created_at": firestore.SERVER_TIMESTAMP
     })
+
+def send_email_notification(to_email, patient_name, decision, notes, model_used):
+    """Send email to patient when doctor reviews their scan."""
+    mail_email    = os.environ.get('MAIL_EMAIL')
+    mail_password = os.environ.get('MAIL_PASSWORD')
+ 
+    if not mail_email or not mail_password:
+        print("[WARN] Email not configured — skipping email notification")
+        return
+ 
+    try:
+        decision_text  = "agrees with" if decision == "agree" else "disagrees with"
+        decision_emoji = "✔" if decision == "agree" else "✖"
+        subject = f"NeuroScan — Your MRI scan has been reviewed"
+ 
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f8fafc;padding:24px;border-radius:12px;">
+            <div style="background:linear-gradient(135deg,#0d3f7a,#1558a8);border-radius:10px;padding:24px;text-align:center;margin-bottom:24px;">
+                <h1 style="color:#fff;font-size:22px;margin:0;">🧠 NeuroScan</h1>
+                <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">AI-Powered Stroke Detection</p>
+            </div>
+ 
+            <div style="background:#fff;border-radius:10px;padding:24px;border:1px solid #e5e7eb;">
+                <h2 style="color:#111827;font-size:17px;margin:0 0 8px;">Your scan has been reviewed</h2>
+                <p style="color:#6b7280;font-size:14px;margin:0 0 20px;">
+                    Hello {patient_name or to_email}, a doctor has reviewed your MRI scan on NeuroScan.
+                </p>
+ 
+                <div style="background:#f0f4ff;border-radius:8px;padding:16px;margin-bottom:20px;border-left:4px solid #1558a8;">
+                    <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Model Used</div>
+                    <div style="font-weight:600;color:#111827;font-size:15px;">{(model_used or 'N/A').upper()}</div>
+                </div>
+ 
+                <div style="background:{'#f0fdf4' if decision == 'agree' else '#fef2f2'};border-radius:8px;padding:16px;margin-bottom:20px;border-left:4px solid {'#0f7a3e' if decision == 'agree' else '#b91c1c'};">
+                    <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Doctor's Decision</div>
+                    <div style="font-weight:700;color:{'#0f7a3e' if decision == 'agree' else '#b91c1c'};font-size:15px;">
+                        {decision_emoji} The doctor {decision_text} the AI prediction
+                    </div>
+                    {f'<div style="margin-top:8px;font-size:13px;color:#374151;font-style:italic;">"{notes}"</div>' if notes else ''}
+                </div>
+ 
+                <p style="font-size:12px;color:#9ca3af;margin:0;">
+                    ⚠ This is an AI-assisted research tool. Please consult a qualified medical professional for clinical advice.
+                </p>
+            </div>
+ 
+            <div style="text-align:center;margin-top:16px;">
+                <p style="font-size:11px;color:#9ca3af;">NeuroScan FYP · Universiti Tunku Abdul Rahman</p>
+            </div>
+        </div>
+        """
+ 
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = f"NeuroScan <{mail_email}>"
+        msg['To']      = to_email
+        msg.attach(MIMEText(html, 'html'))
+ 
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(mail_email, mail_password)
+            server.sendmail(mail_email, to_email, msg.as_string())
+ 
+        print(f"[INFO] Email notification sent to {to_email}")
+ 
+    except Exception as e:
+        print(f"[WARN] Email notification failed: {e}")
 
 def role_required(*roles):
     def decorator(f):
@@ -277,7 +346,24 @@ Important guidelines:
 @bp.route('/home', methods=['GET', 'POST'])
 @login_required
 def home():
-    return render_template('index.html')
+    notifications = []
+    unread_count  = 0
+    if current_user.role == 'patient':
+        try:
+            notifs_snap = db.collection("notifications") \
+                .where("user_id", "==", current_user.id) \
+                .order_by("created_at", direction=firestore.Query.DESCENDING) \
+                .limit(20).get()
+            for n in notifs_snap:
+                obj = n.to_dict()
+                obj["id"] = n.id
+                notifications.append(obj)
+            unread_count = sum(1 for n in notifications if not n.get("read"))
+        except Exception as e:
+            print(f"[WARN] Notifications fetch failed: {e}")
+    return render_template('index.html',
+        notifications=notifications,
+        unread_count=unread_count)
 
 @bp.route('/about')
 def about():
@@ -832,18 +918,19 @@ def review(prediction_id):
     else:
         decision = request.form.get("decision")
         notes = request.form.get("notes", "")
-
+ 
     if decision not in ["agree", "disagree"]:
         flash("Invalid decision.", "warning")
         return redirect(url_for('routes.dashboard_doctor'))
-
+ 
     existing = db.collection("reviews") \
         .where("prediction_id", "==", prediction_id) \
         .where("doctor_id", "==", current_user.id).get()
     if existing:
         flash("You already reviewed this case.", "info")
         return redirect(url_for('routes.dashboard_doctor'))
-
+ 
+    # Save review
     db.collection("reviews").add({
         "prediction_id": prediction_id,
         "doctor_id": current_user.id,
@@ -851,12 +938,70 @@ def review(prediction_id):
         "notes": notes,
         "created_at": firestore.SERVER_TIMESTAMP
     })
-
     db.collection("predictions").document(prediction_id).update({"status": "reviewed"})
-    log_event(current_user.id, "doctor", "review", {"prediction_id": prediction_id, "decision": decision})
+    log_event(current_user.id, "doctor", "review", {
+        "prediction_id": prediction_id, "decision": decision
+    })
+ 
+    # Get prediction to find patient
+    try:
+        pred_doc = db.collection("predictions").document(prediction_id).get()
+        if pred_doc.exists:
+            pred_data = pred_doc.to_dict()
+            patient_id = pred_data.get("user_id")
+            model_used = pred_data.get("model_used", "N/A")
+ 
+            if patient_id:
+                # Save in-app notification to Firestore
+                db.collection("notifications").add({
+                    "user_id":       patient_id,
+                    "prediction_id": prediction_id,
+                    "doctor_id":     current_user.id,
+                    "decision":      decision,
+                    "notes":         notes,
+                    "read":          False,
+                    "created_at":    firestore.SERVER_TIMESTAMP
+                })
+ 
+                # Send email notification
+                patient_doc = db.collection("users").document(patient_id).get()
+                if patient_doc.exists:
+                    patient_data = patient_doc.to_dict()
+                    patient_email = patient_data.get("email")
+                    patient_name  = patient_data.get("name")
+                    if patient_email:
+                        send_email_notification(
+                            patient_email, patient_name,
+                            decision, notes, model_used
+                        )
+    except Exception as e:
+        print(f"[WARN] Notification failed: {e}")
+ 
     flash("Review submitted.", "success")
     return redirect(url_for('routes.dashboard_doctor'))
 
+@bp.route('/notifications/read/<notif_id>', methods=['POST'])
+@login_required
+def mark_notification_read(notif_id):
+    try:
+        db.collection("notifications").document(notif_id).update({"read": True})
+    except Exception:
+        pass
+    return jsonify({'success': True}), 200
+ 
+ 
+@bp.route('/notifications/read_all', methods=['POST'])
+@login_required
+def mark_all_notifications_read():
+    try:
+        notifs = db.collection("notifications") \
+            .where("user_id", "==", current_user.id) \
+            .where("read", "==", False).get()
+        for n in notifs:
+            n.reference.update({"read": True})
+    except Exception:
+        pass
+    return jsonify({'success': True}), 200
 
 # -----------------------------
 # Error handlers

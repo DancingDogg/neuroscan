@@ -30,6 +30,27 @@ def create_app(secret_key):
     bcrypt.init_app(app)
     login_manager.init_app(app)
 
+    @app.context_processor
+    def inject_notifications():
+        from flask_login import current_user
+        from flask import request as flask_request
+        notifications = []
+        unread_count  = 0
+        try:
+            if current_user.is_authenticated and current_user.role == 'patient':
+                notifs_snap = db.collection("notifications") \
+                    .where("user_id", "==", current_user.id) \
+                    .order_by("created_at", direction=firestore.Query.DESCENDING) \
+                    .limit(20).get()
+                for n in notifs_snap:
+                    obj = n.to_dict()
+                    obj["id"] = n.id
+                    notifications.append(obj)
+                unread_count = sum(1 for n in notifications if not n.get("read"))
+        except Exception:
+            pass
+        return dict(notifications=notifications, unread_count=unread_count)
+
     @app.before_request
     def check_csrf():
         return None

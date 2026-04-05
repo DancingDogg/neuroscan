@@ -43,6 +43,144 @@
                             <a href="{{ url_for('routes.dashboard_patient') }}" class="btn btn-outline btn-sm">Dashboard</a>
                         {% endif %}
 
+                        {# ════════════════════════════════════════════════════════
+                        PART 1 — base.html
+                        Add notification bell to navbar for patient users only.
+                        Place it BETWEEN the Dashboard button and the Avatar dropdown.
+                        ════════════════════════════════════════════════════════ #}
+
+                        {% if current_user.role == 'patient' %}
+                        <!-- Notification bell -->
+                        <div style="position:relative;" id="notifMenu">
+                            <button onclick="toggleNotif()"
+                                    style="width:34px; height:34px; border-radius:50%;
+                                        background:var(--clr-surface-2); border:1px solid var(--clr-border);
+                                        cursor:pointer; display:inline-flex; align-items:center;
+                                        justify-content:center; font-size:1rem; position:relative;
+                                        transition:background 0.15s;"
+                                    onmouseover="this.style.background='var(--clr-primary-light)'"
+                                    onmouseout="this.style.background='var(--clr-surface-2)'"
+                                    title="Notifications">
+                                🔔
+                                {% if unread_count and unread_count > 0 %}
+                                <span style="position:absolute; top:-3px; right:-3px;
+                                            width:17px; height:17px; border-radius:50%;
+                                            background:var(--clr-danger); color:#fff;
+                                            font-size:0.62rem; font-weight:700;
+                                            display:flex; align-items:center; justify-content:center;
+                                            border:2px solid var(--clr-bg);">
+                                    {{ unread_count if unread_count < 10 else '9+' }}
+                                </span>
+                                {% endif %}
+                            </button>
+
+                            <!-- Notification dropdown -->
+                            <div id="notifDropdown"
+                                style="display:none; position:absolute; right:0; top:calc(100% + 8px);
+                                        background:var(--clr-surface); border:1px solid var(--clr-border);
+                                        border-radius:var(--radius-lg); box-shadow:var(--shadow-lg);
+                                        width:300px; z-index:200; overflow:hidden;">
+
+                                <div style="padding:0.75rem 1rem; border-bottom:1px solid var(--clr-border);
+                                            background:var(--clr-surface-2); display:flex;
+                                            align-items:center; justify-content:space-between;">
+                                    <span style="font-weight:600; font-size:0.875rem; color:var(--txt-primary);">
+                                        Notifications
+                                    </span>
+                                    {% if unread_count and unread_count > 0 %}
+                                    <button onclick="markAllRead()"
+                                            style="font-size:0.75rem; color:var(--clr-primary); background:none;
+                                                border:none; cursor:pointer; font-family:var(--font-display);">
+                                        Mark all read
+                                    </button>
+                                    {% endif %}
+                                </div>
+
+                                <div style="max-height:320px; overflow-y:auto;">
+                                    {% if notifications %}
+                                        {% for n in notifications %}
+                                        <div class="notif-item {{ 'unread' if not n.read else '' }}"
+                                            data-id="{{ n.id }}"
+                                            style="padding:0.75rem 1rem; border-bottom:1px solid var(--clr-border);
+                                                    cursor:pointer; transition:background 0.14s;
+                                                    background:{{ 'var(--clr-primary-light)' if not n.read else 'var(--clr-surface)' }};"
+                                            onmouseover="this.style.background='var(--clr-surface-2)'"
+                                            onmouseout="this.style.background='{{ 'var(--clr-primary-light)' if not n.read else 'var(--clr-surface)' }}'"
+                                            onclick="markRead('{{ n.id }}')">
+                                            <div style="display:flex; gap:8px; align-items:flex-start;">
+                                                <span style="font-size:1rem; flex-shrink:0;">
+                                                    {{ '✔' if n.decision == 'agree' else '✖' }}
+                                                </span>
+                                                <div>
+                                                    <div style="font-size:0.82rem; font-weight:500; color:var(--txt-primary);">
+                                                        Doctor reviewed your scan
+                                                    </div>
+                                                    <div style="font-size:0.78rem; color:var(--txt-muted); margin-top:2px;">
+                                                        {{ 'Agrees' if n.decision == 'agree' else 'Disagrees' }} with AI result
+                                                        · {{ n.created_at.strftime("%d %b, %H:%M") if n.created_at else '' }}
+                                                    </div>
+                                                    {% if n.notes %}
+                                                    <div style="font-size:0.78rem; color:var(--txt-secondary);
+                                                                margin-top:3px; font-style:italic;">
+                                                        "{{ n.notes[:60] }}{{ '…' if n.notes|length > 60 else '' }}"
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                    <div style="padding:1.5rem; text-align:center; color:var(--txt-muted); font-size:0.85rem;">
+                                        No notifications yet
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                {% if notifications %}
+                                <div style="padding:0.6rem 1rem; border-top:1px solid var(--clr-border);
+                                            background:var(--clr-surface-2); text-align:center;">
+                                    <a href="{{ url_for('routes.dashboard_patient') }}"
+                                    style="font-size:0.8rem; color:var(--clr-primary); text-decoration:none; font-weight:500;">
+                                        View all in dashboard →
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <script>
+                            function toggleNotif() {
+                                const d = document.getElementById('notifDropdown');
+                                const isOpen = d.style.display === 'block';
+                                d.style.display = isOpen ? 'none' : 'block';
+                                // Close avatar dropdown if open
+                                const avatar = document.getElementById('avatarDropdown');
+                                if (avatar) avatar.style.display = 'none';
+                            }
+
+                            document.addEventListener('click', function(e) {
+                                const menu = document.getElementById('notifMenu');
+                                if (menu && !menu.contains(e.target)) {
+                                    document.getElementById('notifDropdown').style.display = 'none';
+                                }
+                            });
+
+                            async function markRead(notifId) {
+                                await fetch(`/notifications/read/${notifId}`, {
+                                    method: 'POST', credentials: 'include'
+                                });
+                                window.location.href = "{{ url_for('routes.dashboard_patient') }}";
+                            }
+
+                            async function markAllRead() {
+                                await fetch('/notifications/read_all', {
+                                    method: 'POST', credentials: 'include'
+                                });
+                                window.location.reload();
+                            }
+                        </script>
+                        {% endif %}
+
                         <!-- Avatar dropdown -->
                         <div style="position:relative;" id="avatarMenu">
                             <button onclick="toggleDropdown()" 
