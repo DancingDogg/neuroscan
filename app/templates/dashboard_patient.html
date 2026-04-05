@@ -85,7 +85,7 @@
             </thead>
             <tbody>
                 {% for p in predictions %}
-                <tr>
+                <tr class="{{ 'row-clot' if p.result == 'clot' else '' }}">
                     <td class="row-num"></td>
                     <td>
                         <span class="badge {{ 'badge-clot' if p.result == 'clot' else 'badge-normal' }}">

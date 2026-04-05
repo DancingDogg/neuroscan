@@ -1400,3 +1400,19 @@ table.dataTable thead th.sorting_desc:after {
     color: var(--txt-muted);
     margin-left: 4px;
 }
+
+/* Colour-coded table rows — clot predictions get a subtle red tint */
+.data-table tbody tr.row-clot,
+.dataTables_wrapper table.dataTable tbody tr.row-clot {
+    background: #fff5f5 !important;
+}
+.data-table tbody tr.row-clot:hover,
+.dataTables_wrapper table.dataTable tbody tr.row-clot:hover {
+    background: #fee2e2 !important;
+}
+ 
+/* Left accent border on clot rows for extra visual signal */
+.data-table tbody tr.row-clot td:first-child,
+.dataTables_wrapper table.dataTable tbody tr.row-clot td:first-child {
+    border-left: 3px solid var(--clr-danger);
+}

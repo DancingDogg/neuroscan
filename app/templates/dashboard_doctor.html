@@ -63,7 +63,7 @@
             </thead>
             <tbody>
                 {% for c in cases %}
-                <tr class="{{ 'row-critical' if c.result == 'clot' else '' }}">
+                <tr class="{{ 'row-clot' if c.result == 'clot' else '' }}">
                     <td class="row-num"></td>
                     <td style="font-size:0.875rem; font-weight:500; color:var(--txt-primary);">{{ c.patient_email }}</td>
                     <td>

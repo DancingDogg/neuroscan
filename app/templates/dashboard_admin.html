@@ -40,6 +40,33 @@
     </div>
 </div>
 
+<!-- Charts row -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem;">
+ 
+    <!-- User role pie chart -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">User Breakdown</h3>
+            <span style="font-size:0.78rem; color:var(--txt-muted);">By role</span>
+        </div>
+        <div style="position:relative; height:180px; display:flex; align-items:center; justify-content:center;">
+            <canvas id="roleChart"></canvas>
+        </div>
+    </div>
+ 
+    <!-- Predictions result bar chart -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Prediction Results</h3>
+            <span style="font-size:0.78rem; color:var(--txt-muted);">Clot vs No Clot</span>
+        </div>
+        <div style="position:relative; height:180px; display:flex; align-items:center; justify-content:center;">
+            <canvas id="resultChart"></canvas>
+        </div>
+    </div>
+ 
+</div>
+
 <!-- Tab navigation -->
 <div style="display:flex; gap:0.5rem; margin-bottom:1.25rem; border-bottom:2px solid var(--clr-border); padding-bottom:0;">
     <button onclick="showTab('tab-users')" id="btn-users"
@@ -160,7 +187,7 @@
                 </thead>
                 <tbody>
                     {% for p in predictions %}
-                    <tr>
+                    <tr class="{{ 'row-clot' if p.result == 'clot' else '' }}">
                         <td class="row-num"></td>
                         <td style="font-size:0.82rem; color:var(--txt-secondary);">{{ p.patient_email }}</td>
                         <td>
@@ -433,4 +460,71 @@
         }
     }
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // ── User role pie chart ──
+    const doctorCount  = {{ users | selectattr('role', 'equalto', 'doctor')  | list | length }};
+    const patientCount = {{ users | selectattr('role', 'equalto', 'patient') | list | length }};
+    const adminCount   = {{ users | selectattr('role', 'equalto', 'admin')   | list | length }};
+ 
+    new Chart(document.getElementById('roleChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Patients', 'Doctors', 'Admins'],
+            datasets: [{
+                data: [patientCount, doctorCount, adminCount],
+                backgroundColor: ['#dbeafe', '#ede9fe', '#fef3c7'],
+                borderColor:     ['#1d4ed8', '#6d28d9', '#b45309'],
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { font: { family: 'DM Sans', size: 12 }, padding: 12 }
+                }
+            },
+            cutout: '65%'
+        }
+    });
+ 
+    // ── Prediction results bar chart ──
+    const clotCount   = {{ predictions | selectattr('result', 'equalto', 'clot')    | list | length }};
+    const noclotCount = {{ predictions | selectattr('result', 'equalto', 'no clot') | list | length }};
+ 
+    new Chart(document.getElementById('resultChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Clot Detected', 'No Clot'],
+            datasets: [{
+                data: [clotCount, noclotCount],
+                backgroundColor: ['#fef2f2', '#e8f7ef'],
+                borderColor:     ['#b91c1c', '#0f7a3e'],
+                borderWidth: 2,
+                borderRadius: 8,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    ticks: { font: { family: 'DM Sans', size: 12 } },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+</script>
+
 {% endblock %}
