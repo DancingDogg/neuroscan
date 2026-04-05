@@ -161,6 +161,84 @@
 
     {% if current_user.is_authenticated %}
     
+    <!-- ── Session timeout warning ── -->
+    <div id="sessionWarning" style="display:none; position:fixed; top:1.5rem; left:50%;
+        transform:translateX(-50%); z-index:500; background:var(--clr-surface);
+        border:1px solid var(--clr-warning); border-radius:var(--radius-lg);
+        box-shadow:var(--shadow-xl); padding:1.1rem 1.5rem; min-width:320px;
+        text-align:center;">
+        <div style="font-size:1.2rem; margin-bottom:0.4rem;">⏱</div>
+        <div style="font-weight:600; font-size:0.9rem; color:var(--txt-primary);
+                    margin-bottom:0.25rem;">Session expiring soon</div>
+        <div style="font-size:0.82rem; color:var(--txt-muted); margin-bottom:1rem;">
+            You will be logged out in <span id="sessionCountdown"
+            style="font-weight:700; color:var(--clr-warning);">60</span> seconds
+            due to inactivity.
+        </div>
+        <div style="display:flex; gap:0.75rem; justify-content:center;">
+            <button onclick="extendSession()"
+                    class="btn btn-primary btn-sm">Stay logged in</button>
+            <a href="{{ url_for('routes.logout') }}"
+            class="btn btn-outline btn-sm">Log out now</a>
+        </div>
+    </div>
+
+    <script>
+        // Session = 30 minutes = 1800 seconds
+        // Show warning at 60 seconds remaining = after 1740 seconds of inactivity
+        const SESSION_DURATION  = 30 * 60 * 1000;  // 30 min in ms
+        const WARNING_BEFORE    = 60 * 1000;         // show warning 60s before expiry
+        const COUNTDOWN_SECONDS = 60;
+
+        let sessionTimer, countdownTimer;
+        let lastActivity = Date.now();
+
+        function resetSessionTimer() {
+            lastActivity = Date.now();
+            clearTimeout(sessionTimer);
+            clearTimeout(countdownTimer);
+            hideWarning();
+
+            sessionTimer = setTimeout(showWarning, SESSION_DURATION - WARNING_BEFORE);
+        }
+
+        function showWarning() {
+            document.getElementById('sessionWarning').style.display = 'block';
+            let seconds = COUNTDOWN_SECONDS;
+            document.getElementById('sessionCountdown').textContent = seconds;
+
+            countdownTimer = setInterval(() => {
+                seconds--;
+                const el = document.getElementById('sessionCountdown');
+                if (el) el.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(countdownTimer);
+                    window.location.href = "{{ url_for('routes.logout') }}";
+                }
+            }, 1000);
+        }
+
+        function hideWarning() {
+            document.getElementById('sessionWarning').style.display = 'none';
+            clearInterval(countdownTimer);
+        }
+
+        function extendSession() {
+            // Ping the server to refresh the session
+            fetch('/', { credentials: 'include' })
+                .then(() => resetSessionTimer())
+                .catch(() => resetSessionTimer());
+        }
+
+        // Reset timer on any user activity
+        ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, resetSessionTimer, { passive: true });
+        });
+
+        // Start the timer
+        resetSessionTimer();
+    </script>
+
     <!-- ══ ILMU AI Chatbot ══ -->
     
     <!-- Floating button -->

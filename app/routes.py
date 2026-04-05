@@ -2,6 +2,8 @@ import os
 from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, current_app, flash, jsonify, abort
 from flask_login import login_user, login_required, logout_user, current_user
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 from .forms import UploadForm, LoginForm, RegistrationForm
 from .models import User
@@ -11,6 +13,11 @@ import anthropic as anthropic_sdk
 
 bp = Blueprint('routes', __name__)
 db = firestore.client()
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[]
+)
 
 # -------------------------------
 # Utility
@@ -77,6 +84,8 @@ def session_login():
         if not user:
             return jsonify({'error': 'User not found in Firestore.'}), 404
         login_user(user)
+        from flask import session
+        session.permanent = True
         log_event(uid, user.role, "login")
         return jsonify({'success': True, 'message': 'Login successful'}), 200
     except exceptions.InvalidIdTokenError:
@@ -283,6 +292,7 @@ def comparison():
 # -------------------------------
 @bp.route('/predict', methods=['GET', 'POST'])
 @login_required
+@limiter.limit("10 per minute")
 def predict():
     form = UploadForm()
     result = None

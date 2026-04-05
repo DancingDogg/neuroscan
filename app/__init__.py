@@ -16,6 +16,12 @@ login_manager.login_message_category = 'info'
 def create_app(secret_key):
     app = Flask(__name__)
     app.config['SECRET_KEY'] = secret_key
+
+    # Session timeout — auto logout after 30 minutes of inactivity
+    from datetime import timedelta
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
     app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
     app.config['MODELS'] = {}
@@ -38,6 +44,10 @@ def create_app(secret_key):
 
     # Firestore client
     db = firestore.client()
+
+    # Rate Limiter
+    from .routes import limiter
+    limiter.init_app(app)
 
     # Blueprints
     from . import models, routes
