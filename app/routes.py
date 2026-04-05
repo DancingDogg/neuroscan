@@ -7,6 +7,7 @@ from .forms import UploadForm, LoginForm, RegistrationForm
 from .models import User
 from .ml.model_loader import predict_stroke_risk
 from firebase_admin import auth, storage, firestore, exceptions
+import anthropic as anthropic_sdk
 
 bp = Blueprint('routes', __name__)
 db = firestore.client()
@@ -197,6 +198,67 @@ def update_display_name():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/chat', methods=['POST'])
+@login_required
+def chat():
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON.'}), 400
+ 
+    data = request.get_json(silent=True)
+    user_message = (data.get('message') or '').strip()
+    history = data.get('history', [])
+ 
+    if not user_message:
+        return jsonify({'error': 'Message is empty.'}), 400
+ 
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'AI service not configured.'}), 500
+ 
+    try:
+        client = anthropic_sdk.Anthropic(api_key=api_key)
+ 
+        # Build message history (last 10 turns max)
+        messages = []
+        for h in history[-10:]:
+            if h.get('role') in ('user', 'assistant') and h.get('content'):
+                messages.append({'role': h['role'], 'content': h['content']})
+ 
+        # Ensure last message is from user
+        if not messages or messages[-1]['role'] != 'user':
+            messages.append({'role': 'user', 'content': user_message})
+ 
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",  # Fast and cost-effective
+            max_tokens=512,
+            system="""You are NeuroScan AI, a helpful medical AI assistant integrated into the NeuroScan stroke detection system.
+ 
+Your role is to help users understand:
+- Ischemic stroke: what it is, causes, symptoms, and treatment
+- How the NeuroScan system works (MRI upload, AI prediction, Grad-CAM, Attention Rollout)
+- The deep learning models used (ResNet50, ResNet101, DenseNet121, DenseNet169, EfficientNet-B3, Vision Transformer, Ensemble)
+- What Grad-CAM and Attention Rollout heatmaps mean
+- How to interpret confidence scores and predictions
+- General questions about brain health and stroke prevention
+ 
+Important guidelines:
+- Always remind users that this system is a research prototype and NOT a substitute for professional medical diagnosis
+- Be concise, friendly, and clear
+- Do not diagnose specific patients or interpret specific scan results
+- If asked about something outside your scope, politely redirect to relevant topics
+- Keep responses under 150 words unless the question requires more detail""",
+            messages=messages
+        )
+ 
+        reply = response.content[0].text
+        return jsonify({'reply': reply}), 200
+ 
+    except anthropic_sdk.APIError as e:
+        print(f"[WARN] Anthropic API error: {e}")
+        return jsonify({'error': 'AI service temporarily unavailable.'}), 503
+    except Exception as e:
+        print(f"[WARN] Chat error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # -------------------------------
 # General Pages

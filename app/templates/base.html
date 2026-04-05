@@ -159,6 +159,236 @@
         <p>© 2026 Lee Ding Kuan · NeuroScan FYP · Universiti Tunku Abdul Rahman</p>
     </footer>
 
+    {% if current_user.is_authenticated %}
+    
+    <!-- ══ ILMU AI Chatbot ══ -->
+    
+    <!-- Floating button -->
+    <button id="chatToggleBtn" onclick="toggleChat()"
+            style="position:fixed; bottom:1.75rem; right:1.75rem; z-index:350;
+                width:52px; height:52px; border-radius:50%;
+                background:linear-gradient(135deg, var(--clr-primary), var(--clr-primary-mid));
+                border:none; cursor:pointer; color:#fff; font-size:1.4rem;
+                box-shadow:0 4px 16px rgba(21,88,168,0.45);
+                display:flex; align-items:center; justify-content:center;
+                transition:transform 0.2s, box-shadow 0.2s;"
+            onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 22px rgba(21,88,168,0.55)'"
+            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 16px rgba(21,88,168,0.45)'"
+            title="AI Assistant">
+        🤖
+    </button>
+    
+    <!-- Chat panel -->
+    <div id="chatPanel"
+        style="display:none; position:fixed; bottom:5.5rem; right:1.75rem; z-index:350;
+                width:360px; height:500px; background:var(--clr-surface);
+                border:1px solid var(--clr-border); border-radius:var(--radius-xl);
+                box-shadow:var(--shadow-xl); flex-direction:column; overflow:hidden;">
+    
+        <!-- Header -->
+        <div style="padding:1rem 1.1rem; border-bottom:1px solid var(--clr-border);
+                    background:linear-gradient(135deg, var(--clr-primary), var(--clr-primary-mid));
+                    display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:9px;">
+                <div style="width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.2);
+                            display:flex; align-items:center; justify-content:center; font-size:1rem;">
+                    🤖
+                </div>
+                <div>
+                    <div style="font-weight:600; font-size:0.875rem; color:#fff;
+                                font-family:var(--font-display);">NeuroScan AI</div>
+                    <div style="font-size:0.72rem; color:rgba(255,255,255,0.7);">
+                        Stroke detection assistant
+                    </div>
+                </div>
+            </div>
+            <button onclick="toggleChat()"
+                    style="background:rgba(255,255,255,0.15); border:none; border-radius:6px;
+                        width:28px; height:28px; cursor:pointer; color:#fff; font-size:1rem;
+                        display:flex; align-items:center; justify-content:center;">✕</button>
+        </div>
+    
+        <!-- Messages -->
+        <div id="chatMessages"
+            style="flex:1; overflow-y:auto; padding:1rem; display:flex;
+                    flex-direction:column; gap:0.75rem; background:var(--clr-surface-2);">
+            <!-- Welcome message -->
+            <div style="display:flex; gap:8px; align-items:flex-start;">
+                <div style="width:28px; height:28px; border-radius:50%; background:var(--clr-primary-light);
+                            display:flex; align-items:center; justify-content:center;
+                            font-size:0.85rem; flex-shrink:0;">🤖</div>
+                <div style="background:var(--clr-surface); border:1px solid var(--clr-border);
+                            border-radius:0 12px 12px 12px; padding:0.65rem 0.85rem;
+                            font-size:0.82rem; color:var(--txt-secondary); line-height:1.5;
+                            max-width:85%;">
+                    Hello! I'm the NeuroScan AI assistant. I can help you understand stroke detection, MRI results, and how the system works. How can I help you?
+                </div>
+            </div>
+        </div>
+    
+        <!-- Input -->
+        <div style="padding:0.75rem; border-top:1px solid var(--clr-border);
+                    background:var(--clr-surface); flex-shrink:0;">
+            <div style="display:flex; gap:0.5rem; align-items:flex-end;">
+                <textarea id="chatInput" placeholder="Ask about stroke detection…"
+                        rows="1"
+                        style="flex:1; border:1px solid var(--clr-border-med);
+                                border-radius:var(--radius-md); padding:0.55rem 0.8rem;
+                                font-family:var(--font-body); font-size:0.85rem;
+                                resize:none; outline:none; line-height:1.5;
+                                max-height:100px; overflow-y:auto;
+                                transition:border-color 0.15s;"
+                        onfocus="this.style.borderColor='var(--clr-primary)'"
+                        onblur="this.style.borderColor='var(--clr-border-med)'"
+                        onkeydown="handleChatKey(event)"></textarea>
+                <button onclick="sendMessage()"
+                        id="chatSendBtn"
+                        style="width:36px; height:36px; border-radius:var(--radius-md);
+                            background:var(--clr-primary); border:none; cursor:pointer;
+                            color:#fff; font-size:1rem; display:flex;
+                            align-items:center; justify-content:center;
+                            transition:background 0.15s; flex-shrink:0;"
+                        onmouseover="this.style.background='var(--clr-primary-dark)'"
+                        onmouseout="this.style.background='var(--clr-primary)'">➤</button>
+            </div>
+            <div style="font-size:0.7rem; color:var(--txt-muted); margin-top:0.4rem; text-align:center;">
+                Powered by AI · Not a substitute for clinical advice
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ── Toggle chat panel ──
+        function toggleChat() {
+            const panel = document.getElementById('chatPanel');
+            const isOpen = panel.style.display === 'flex';
+            panel.style.display = isOpen ? 'none' : 'flex';
+            if (!isOpen) {
+                document.getElementById('chatInput').focus();
+            }
+        }
+    
+        // ── Send on Enter (Shift+Enter for newline) ──
+        function handleChatKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+    
+        // ── Append a message bubble ──
+        function appendMessage(content, role) {
+            const container = document.getElementById('chatMessages');
+            const isUser = role === 'user';
+    
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = `display:flex; gap:8px; align-items:flex-start;
+                ${isUser ? 'flex-direction:row-reverse;' : ''}`;
+    
+            const avatar = document.createElement('div');
+            avatar.style.cssText = `width:28px; height:28px; border-radius:50%; flex-shrink:0;
+                display:flex; align-items:center; justify-content:center; font-size:0.85rem;
+                ${isUser
+                    ? 'background:var(--clr-primary); color:#fff; font-weight:700; font-size:0.75rem;'
+                    : 'background:var(--clr-primary-light);'}`;
+            avatar.textContent = isUser ? '{{ (current_user.name or current_user.email)[0] | upper }}' : '🤖';
+    
+            const bubble = document.createElement('div');
+            bubble.style.cssText = `padding:0.65rem 0.85rem; font-size:0.82rem;
+                line-height:1.55; max-width:82%; white-space:pre-wrap; word-break:break-word;
+                ${isUser
+                    ? 'background:var(--clr-primary); color:#fff; border-radius:12px 0 12px 12px;'
+                    : 'background:var(--clr-surface); border:1px solid var(--clr-border); color:var(--txt-secondary); border-radius:0 12px 12px 12px;'}`;
+            bubble.textContent = content;
+    
+            wrapper.appendChild(avatar);
+            wrapper.appendChild(bubble);
+            container.appendChild(wrapper);
+            container.scrollTop = container.scrollHeight;
+            return bubble;
+        }
+    
+        // ── Typing indicator ──
+        function showTyping() {
+            const container = document.getElementById('chatMessages');
+            const wrapper = document.createElement('div');
+            wrapper.id = 'typingIndicator';
+            wrapper.style.cssText = 'display:flex; gap:8px; align-items:flex-start;';
+            wrapper.innerHTML = `
+                <div style="width:28px; height:28px; border-radius:50%; background:var(--clr-primary-light);
+                            display:flex; align-items:center; justify-content:center; font-size:0.85rem; flex-shrink:0;">🤖</div>
+                <div style="background:var(--clr-surface); border:1px solid var(--clr-border);
+                            border-radius:0 12px 12px 12px; padding:0.65rem 0.85rem;">
+                    <span style="display:inline-flex; gap:4px; align-items:center;">
+                        <span style="width:6px; height:6px; border-radius:50%; background:var(--txt-muted);
+                                    animation:typingDot 1.2s ease-in-out infinite;"></span>
+                        <span style="width:6px; height:6px; border-radius:50%; background:var(--txt-muted);
+                                    animation:typingDot 1.2s ease-in-out 0.2s infinite;"></span>
+                        <span style="width:6px; height:6px; border-radius:50%; background:var(--txt-muted);
+                                    animation:typingDot 1.2s ease-in-out 0.4s infinite;"></span>
+                    </span>
+                </div>`;
+            container.appendChild(wrapper);
+            container.scrollTop = container.scrollHeight;
+        }
+    
+        function hideTyping() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
+        }
+    
+        // ── Send message ──
+        const chatHistory = [];
+    
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+    
+            input.value = '';
+            input.style.height = 'auto';
+            appendMessage(msg, 'user');
+            chatHistory.push({ role: 'user', content: msg });
+    
+            const btn = document.getElementById('chatSendBtn');
+            btn.disabled = true;
+            showTyping();
+    
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ message: msg, history: chatHistory.slice(-10) })
+                });
+                const data = await res.json();
+                hideTyping();
+    
+                if (res.ok && data.reply) {
+                    appendMessage(data.reply, 'assistant');
+                    chatHistory.push({ role: 'assistant', content: data.reply });
+                } else {
+                    appendMessage('Sorry, something went wrong. Please try again.', 'assistant');
+                }
+            } catch (err) {
+                hideTyping();
+                appendMessage('Unable to reach the AI assistant. Please check your connection.', 'assistant');
+            } finally {
+                btn.disabled = false;
+                input.focus();
+            }
+        }
+    </script>
+    
+    <style>
+    @keyframes typingDot {
+        0%, 60%, 100% { opacity:0.2; transform:translateY(0); }
+        30%           { opacity:1;   transform:translateY(-3px); }
+    }
+    </style>
+    
+    {% endif %}
+
 </div>
 
 </body>
