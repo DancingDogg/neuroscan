@@ -348,14 +348,16 @@ def predict():
 @bp.route("/dashboard/admin")
 @role_required("admin")
 def dashboard_admin():
-    # Fetch users
+    # Fetch users — build a cache dict {uid: user_data}
     users_snap = db.collection("users").get()
     users = []
+    user_cache = {}
     for d in users_snap:
         obj = d.to_dict()
         obj["id"] = d.id
         users.append(obj)
- 
+        user_cache[d.id] = obj
+
     # Fetch logs
     try:
         logs_snap = db.collection("logs") \
@@ -363,31 +365,28 @@ def dashboard_admin():
             .limit(500).get()
         logs = [dict(d.to_dict(), id=d.id) for d in logs_snap]
     except Exception as e:
-        print(f"[WARN] Firestore log ordering failed, sorting in Python: {e}")
+        print(f"[WARN] Firestore log ordering failed: {e}")
         logs_snap = db.collection("logs").limit(500).get()
         logs = [dict(d.to_dict(), id=d.id) for d in logs_snap]
         logs.sort(key=lambda x: x.get("created_at") or 0, reverse=True)
- 
-    # Fetch all predictions with patient email attached
+
+    # Fetch predictions — use user_cache instead of per-prediction DB call
     try:
         preds_snap = db.collection("predictions") \
             .order_by("created_at", direction=firestore.Query.DESCENDING) \
             .limit(500).get()
     except Exception:
         preds_snap = db.collection("predictions").limit(500).get()
- 
+
     predictions = []
     for d in preds_snap:
         obj = d.to_dict()
         obj["id"] = d.id
-        # Attach patient email
-        try:
-            user_ref = db.collection("users").document(obj["user_id"]).get()
-            obj["patient_email"] = user_ref.to_dict().get("email") if user_ref.exists else obj["user_id"]
-        except Exception:
-            obj["patient_email"] = obj.get("user_id", "Unknown")
+        # Use cache — zero extra DB calls
+        user = user_cache.get(obj.get("user_id"), {})
+        obj["patient_email"] = user.get("email", obj.get("user_id", "Unknown"))
         predictions.append(obj)
- 
+
     return render_template('dashboard_admin.html',
         users=users,
         logs=logs,
@@ -410,16 +409,31 @@ def dashboard_doctor():
             .where("status", "==", "pending_review") \
             .limit(200).get()
 
-    cases = []
+    # Collect all unique user_ids first
+    raw_cases = []
+    user_ids = set()
     for d in cases_snap:
         obj = d.to_dict()
         obj["id"] = d.id
+        raw_cases.append(obj)
+        if obj.get("user_id"):
+            user_ids.add(obj["user_id"])
 
-        # Attach patient email
-        user_ref = db.collection("users").document(obj["user_id"]).get()
-        obj["patient_email"] = user_ref.to_dict().get("email") if user_ref.exists else obj["user_id"]
+    # Batch fetch all users in one go
+    user_cache = {}
+    for uid in user_ids:
+        try:
+            doc = db.collection("users").document(uid).get()
+            if doc.exists:
+                user_cache[uid] = doc.to_dict()
+        except Exception:
+            pass
 
-        # Build result_display with confidence
+    cases = []
+    for obj in raw_cases:
+        user = user_cache.get(obj.get("user_id"), {})
+        obj["patient_email"] = user.get("email", obj.get("user_id", "Unknown"))
+
         if "probabilities" in obj and isinstance(obj["probabilities"], dict):
             max_class = max(obj["probabilities"], key=obj["probabilities"].get)
             confidence = round(obj["probabilities"][max_class] * 100, 2)
@@ -427,8 +441,6 @@ def dashboard_doctor():
         else:
             obj["result_display"] = obj.get("result", "N/A")
 
-        # ISSUE 5 FIX: ensure explainability_paths is always present
-        # (older predictions may not have this field)
         if "explainability_paths" not in obj:
             obj["explainability_paths"] = {"gradcam": None, "original": None}
 
@@ -451,22 +463,50 @@ def dashboard_patient():
             .where("user_id", "==", current_user.id) \
             .limit(200).get()
 
-    predictions = []
+    # Collect all prediction ids first
+    raw_preds = []
+    pred_ids = []
     for d in preds_snap:
         obj = d.to_dict()
         obj["id"] = d.id
+        raw_preds.append(obj)
+        pred_ids.append(d.id)
 
-        # Always fetch reviews so the clot count logic works correctly
-        reviews_snap = db.collection("reviews") \
-            .where("prediction_id", "==", obj["id"]).get()
-        reviews = []
-        for r in reviews_snap:
-            rdict = r.to_dict()
-            doc_ref = db.collection("users").document(rdict["doctor_id"]).get()
-            rdict["doctor_email"] = doc_ref.to_dict().get("email") if doc_ref.exists else rdict["doctor_id"]
-            reviews.append(rdict)
+    # Batch fetch all reviews in one query
+    reviews_by_pred = {pid: [] for pid in pred_ids}
+    doctor_ids = set()
+    if pred_ids:
+        try:
+            reviews_snap = db.collection("reviews") \
+                .where("prediction_id", "in", pred_ids[:30]).get()
+            for r in reviews_snap:
+                rdict = r.to_dict()
+                pid = rdict.get("prediction_id")
+                if pid in reviews_by_pred:
+                    reviews_by_pred[pid].append(rdict)
+                if rdict.get("doctor_id"):
+                    doctor_ids.add(rdict["doctor_id"])
+        except Exception as e:
+            print(f"[WARN] Reviews batch fetch failed: {e}")
+
+    # Batch fetch all doctor emails
+    doctor_cache = {}
+    for did in doctor_ids:
+        try:
+            doc = db.collection("users").document(did).get()
+            if doc.exists:
+                doctor_cache[did] = doc.to_dict()
+        except Exception:
+            pass
+
+    # Assemble predictions with reviews
+    predictions = []
+    for obj in raw_preds:
+        reviews = reviews_by_pred.get(obj["id"], [])
+        for r in reviews:
+            doctor = doctor_cache.get(r.get("doctor_id"), {})
+            r["doctor_email"] = doctor.get("email", r.get("doctor_id", "Unknown"))
         obj["reviews"] = reviews
-
         predictions.append(obj)
 
     return render_template('dashboard_patient.html', predictions=predictions)
