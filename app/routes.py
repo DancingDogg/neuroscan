@@ -23,6 +23,19 @@ limiter = Limiter(
     default_limits=[]
 )
 
+ALLOWED_MAGIC_BYTES = {
+    b'\xff\xd8\xff': 'jpg',   # JPEG
+    b'\x89PNG':      'png',   # PNG
+}
+
+def is_valid_image(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            header = f.read(4)
+        return any(header.startswith(magic) for magic in ALLOWED_MAGIC_BYTES)
+    except Exception:
+        return False
+
 # -------------------------------
 # Utility
 # -------------------------------
@@ -279,12 +292,13 @@ def update_display_name():
 
 @bp.route('/chat', methods=['POST'])
 @login_required
+@limiter.limit("20 per minute")
 def chat():
     if not request.is_json:
         return jsonify({'error': 'Request must be JSON.'}), 400
  
     data = request.get_json(silent=True)
-    user_message = (data.get('message') or '').strip()
+    user_message = (data.get('message') or '').strip()[:1000]
     history = data.get('history', [])
  
     if not user_message:
@@ -395,6 +409,13 @@ def predict():
             upload_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
             try:
                 file.save(upload_path)
+
+                # Magic byte validation
+                if not is_valid_image(upload_path):
+                    os.remove(upload_path)
+                    flash('Invalid file. Please upload a real JPEG or PNG image.', 'warning')
+                    return render_template('predict.html', form=form, result=result, selected_model=selected_model, max_prob=max_prob)
+
                 selected_model = request.form.get("model", "resnet50")
                 result = predict_stroke_risk(upload_path, model_name=selected_model)
                 max_prob = max(result["probabilities"].values()) if result else None
