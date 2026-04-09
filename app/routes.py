@@ -93,14 +93,17 @@ def send_email_notification(to_email, patient_name, decision, notes, model_used)
         </div>
         """
 
+        # Resend free tier: can only send to verified email without custom domain
+        # RESEND_TO_EMAIL routes all notifications to admin email for demo purposes
+        resend_to = os.environ.get('RESEND_TO_EMAIL', to_email)
         params = {
             "from": "NeuroScan <onboarding@resend.dev>",
-            "to": [to_email],
-            "subject": "NeuroScan — Your MRI scan has been reviewed",
+            "to": [resend_to],
+            "subject": f"NeuroScan — Review notification (Patient: {to_email})",
             "html": html
         }
         resend.Emails.send(params)
-        print(f"[INFO] Email notification sent to {to_email}")
+        print(f"[INFO] Email notification sent to {resend_to} (patient: {to_email})")
 
     except Exception as e:
         print(f"[WARN] Email notification failed: {e}")
