@@ -106,8 +106,16 @@ def create_app(secret_key):
     def check_csrf():
         return None
 
+    # Initialize Firebase only once
     if not firebase_admin._apps:
-        cred = credentials.Certificate('firebase-key.json')
+        import json
+        firebase_key_json = os.environ.get('FIREBASE_KEY_JSON')
+        if firebase_key_json:
+            # Production — read from environment secret
+            cred = credentials.Certificate(json.loads(firebase_key_json))
+        else:
+            # Local development — read from file
+            cred = credentials.Certificate('firebase-key.json')
         firebase_admin.initialize_app(cred, {
             'storageBucket': 'brainstrokedetection.firebasestorage.app'
         })
