@@ -1,3 +1,12 @@
+---
+title: NeuroScan
+emoji: 🧠
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # NeuroScan — Ischemic Stroke Detection with Ensemble Deep Learning
 
 A Final Year Project developed at **Universiti Tunku Abdul Rahman (UTAR)** under the Bachelor of Information Technology (Honours) Communications and Networking programme.
