@@ -50,6 +50,7 @@ def log_event(user_id, role, action, details=None):
 
 def send_email_notification(to_email, patient_name, decision, notes, model_used):
     """Send email to patient when doctor reviews their scan."""
+    print(f"[DEBUG] send_email_notification called for {to_email}")
     mail_email    = os.environ.get('MAIL_EMAIL')
     mail_password = os.environ.get('MAIL_PASSWORD')
  
@@ -1001,6 +1002,8 @@ def review(prediction_id):
                         )
     except Exception as e:
         print(f"[WARN] Notification failed: {e}")
+        import traceback
+        traceback.print_exc()
  
     flash("Review submitted.", "success")
     return redirect(url_for('routes.dashboard_doctor'))
