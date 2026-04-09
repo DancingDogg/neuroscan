@@ -54,12 +54,12 @@ def ensure_models_downloaded():
     for filename in model_files:
         dest = os.path.join(MODEL_DIR, filename)
         if not os.path.exists(dest):
-            print(f'[INFO] Downloading {filename} from HF Space...')
+            print(f'[INFO] Downloading {filename}...')
             hf_hub_download(
-                repo_id='DancinggDogg/NeuroScan',
-                filename=f'app/ml/model_files/{filename}',
-                repo_type='space',
-                local_dir='.',
+                repo_id='DancinggDogg/NeuroScan-models',
+                filename=filename,
+                repo_type='model',
+                local_dir=MODEL_DIR,
             )
             print(f'[INFO] {filename} ready.')
 
