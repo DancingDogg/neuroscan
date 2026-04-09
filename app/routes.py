@@ -105,7 +105,9 @@ def send_email_notification(to_email, patient_name, decision, notes, model_used)
         msg['To']      = to_email
         msg.attach(MIMEText(html, 'html'))
  
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.ehlo()
+            server.starttls()
             server.login(mail_email, mail_password)
             server.sendmail(mail_email, to_email, msg.as_string())
  
