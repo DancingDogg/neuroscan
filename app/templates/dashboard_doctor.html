@@ -276,12 +276,12 @@
         if (modelLower === 'ensemble') heatmapLabel = 'Ensemble CAM';
         document.getElementById('modal-heatmap-label').textContent = heatmapLabel;
 
-        const origImg    = document.getElementById('modal-orig-img');
-        const origEmpty  = document.getElementById('modal-orig-empty');
-        const origDl     = document.getElementById('modal-orig-dl');
-        const htmpImg    = document.getElementById('modal-heatmap-img');
-        const htmpEmpty  = document.getElementById('modal-heatmap-empty');
-        const htmpDl     = document.getElementById('modal-heatmap-dl');
+        const origImg       = document.getElementById('modal-orig-img');
+        const origEmpty     = document.getElementById('modal-orig-empty');
+        const origDl        = document.getElementById('modal-orig-dl');
+        const htmpImg       = document.getElementById('modal-heatmap-img');
+        const htmpEmpty     = document.getElementById('modal-heatmap-empty');
+        const htmpDl        = document.getElementById('modal-heatmap-dl');
         const imagesSection = document.getElementById('modal-images-section');
         const noImages      = document.getElementById('modal-no-images');
 
@@ -291,31 +291,29 @@
         if (hasOrig || hasHeatmap) {
             imagesSection.style.display = 'block';
             noImages.style.display      = 'none';
-
             if (hasOrig) {
-                origImg.src  = d.orig;
-                origImg.onclick = function() { window.open(d.orig, '_blank'); };
-                origImg.style.display  = '';
+                origImg.src             = d.orig;
+                origImg.onclick         = function() { window.open(d.orig, '_blank'); };
+                origImg.style.display   = '';
                 origEmpty.style.display = 'none';
-                origDl.href  = d.orig;
-                origDl.style.display = '';
+                origDl.href             = d.orig;
+                origDl.style.display    = '';
             } else {
-                origImg.style.display  = 'none';
+                origImg.style.display   = 'none';
                 origEmpty.style.display = '';
-                origDl.style.display   = 'none';
+                origDl.style.display    = 'none';
             }
-
             if (hasHeatmap) {
-                htmpImg.src  = d.heatmap;
-                htmpImg.onclick = function() { window.open(d.heatmap, '_blank'); };
-                htmpImg.style.display  = '';
+                htmpImg.src             = d.heatmap;
+                htmpImg.onclick         = function() { window.open(d.heatmap, '_blank'); };
+                htmpImg.style.display   = '';
                 htmpEmpty.style.display = 'none';
-                htmpDl.href  = d.heatmap;
-                htmpDl.style.display = '';
+                htmpDl.href             = d.heatmap;
+                htmpDl.style.display    = '';
             } else {
-                htmpImg.style.display  = 'none';
+                htmpImg.style.display   = 'none';
                 htmpEmpty.style.display = '';
-                htmpDl.style.display   = 'none';
+                htmpDl.style.display    = 'none';
             }
         } else {
             imagesSection.style.display = 'none';
@@ -339,15 +337,27 @@
         if (e.key === 'Escape') closeReviewModal();
     });
 
+    // ── Review buttons — track which was clicked ──
+    let pendingDecision = null;
+
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('#reviewForm button[type="submit"]');
+        if (btn) pendingDecision = btn.value;
+    });
+
     // ── Review form — fetch submit ──
     document.getElementById('reviewForm').addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const form = this;
+        const form      = this;
         const actionUrl = form.action;
-        const clickedBtn = e.submitter;
-        const decision = clickedBtn ? clickedBtn.value : null;
-        const notes = document.getElementById('modal-notes').value;
+        const notes     = document.getElementById('modal-notes').value;
+        const decision  = pendingDecision;
+
+        if (!decision || !['agree', 'disagree'].includes(decision)) {
+            showToast('Please click Agree or Disagree.', 'warning');
+            return;
+        }
 
         form.querySelectorAll('button').forEach(b => b.disabled = true);
 
@@ -357,6 +367,7 @@
             body: new URLSearchParams({ decision: decision, notes: notes })
         })
         .then(() => {
+            pendingDecision = null;
             closeReviewModal();
             showToast('Review submitted successfully.', 'success');
             setTimeout(() => { window.location.reload(); }, 1500);
