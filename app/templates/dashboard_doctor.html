@@ -78,7 +78,6 @@
                         {{ c.created_at.strftime("%d %b %Y, %H:%M") if c.created_at else "N/A" }}
                     </td>
                     <td>
-                        {# Store all data as data attributes on the button — no nested modals #}
                         <button class="btn btn-outline btn-sm review-btn"
                             data-id="{{ c.id }}"
                             data-patient="{{ c.patient_email }}"
@@ -108,10 +107,6 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════════════════
-     SINGLE SHARED MODAL — lives outside the table entirely.
-     DataTables cannot interfere with it here.
-     ══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="reviewModal" style="align-items:flex-start; padding-top:5vh;">
     <div style="background:var(--clr-surface); border-radius:var(--radius-xl); max-width:800px; width:95vw; overflow:hidden; box-shadow:var(--shadow-xl); border:1px solid var(--clr-border); margin:auto;">
 
@@ -147,8 +142,6 @@
             <div id="modal-images-section" style="margin-bottom:1.25rem;">
                 <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt-muted);margin-bottom:0.75rem;">MRI Scan &amp; Explainability Comparison</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-
-                    <!-- Original MRI -->
                     <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--clr-border);">
                         <div style="padding:0.5rem 0.75rem;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;justify-content:space-between;">
                             <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--txt-muted);">Original MRI</span>
@@ -161,8 +154,6 @@
                             <span id="modal-orig-empty" style="color:#666;font-size:0.85rem;display:none;">Not available</span>
                         </div>
                     </div>
-
-                    <!-- Heatmap -->
                     <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--clr-border);">
                         <div style="padding:0.5rem 0.75rem;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;justify-content:space-between;">
                             <span id="modal-heatmap-label" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--txt-muted);"></span>
@@ -175,9 +166,7 @@
                             <span id="modal-heatmap-empty" style="color:#666;font-size:0.85rem;display:none;">Not available</span>
                         </div>
                     </div>
-
                 </div>
-                <!-- Legend -->
                 <div style="display:flex;align-items:center;gap:6px;margin-top:0.6rem;font-size:0.78rem;color:var(--txt-muted);">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#ff4444,#ff8800);flex-shrink:0;"></span>
                     Red/warm = high activation · Blue/cool = low activation · Click images to open full size
@@ -209,12 +198,43 @@
         </div>
     </div>
 </div>
-<!-- ══ end shared modal ══ -->
 
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
 <script>
+    // ── Toast ──
+    function showToast(msg, type = 'success', duration = 3500) {
+        const icons = { success: '✔', danger: '✖', warning: '⚠', info: 'ℹ' };
+        const colors = {
+            success: { bg: 'var(--clr-success-bg)', color: 'var(--clr-success)', border: '#a3d9bb' },
+            danger:  { bg: 'var(--clr-danger-bg)',  color: 'var(--clr-danger)',  border: '#fca5a5' },
+            warning: { bg: 'var(--clr-warning-bg)', color: 'var(--clr-warning)', border: '#fcd34d' },
+            info:    { bg: 'var(--clr-info-bg)',     color: 'var(--clr-info)',    border: '#93c5fd' },
+        };
+        const c = colors[type] || colors.info;
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999;
+            display:flex; align-items:center; gap:10px;
+            padding:0.75rem 1rem; border-radius:var(--radius-md);
+            background:${c.bg}; color:${c.color};
+            border:1px solid ${c.border};
+            box-shadow:var(--shadow-lg);
+            font-size:0.875rem; font-family:var(--font-display);
+            font-weight:500;
+            min-width:240px; max-width:340px;
+        `;
+        toast.innerHTML = `<span style="font-size:1rem;flex-shrink:0;">${icons[type]||'ℹ'}</span><span>${msg}</span>`;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.3s';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // ── DataTable ──
     $(document).ready(function () {
         if (document.getElementById('doctorTable')) {
             $('#doctorTable').DataTable({
@@ -233,7 +253,7 @@
         }
     });
 
-    // Open the single shared modal, populate it with data from the clicked button
+    // ── Open modal ──
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.review-btn');
         if (!btn) return;
@@ -241,26 +261,21 @@
         const d = btn.dataset;
         const isClot = d.resultType === 'clot';
 
-        // Subtitle
         document.getElementById('modal-subtitle').textContent = 'Patient: ' + d.patient;
 
-        // Result badge
         const badge = document.getElementById('modal-result');
         badge.textContent = d.result;
         badge.className = 'badge ' + (isClot ? 'badge-clot' : 'badge-normal');
 
-        // Metadata
         document.getElementById('modal-model').textContent    = d.model;
         document.getElementById('modal-uploaded').textContent = d.uploaded;
 
-        // Heatmap label
         const modelLower = d.model.toLowerCase();
         let heatmapLabel = 'Grad-CAM Heatmap';
         if (modelLower === 'vit')      heatmapLabel = 'Attention Rollout';
         if (modelLower === 'ensemble') heatmapLabel = 'Ensemble CAM';
         document.getElementById('modal-heatmap-label').textContent = heatmapLabel;
 
-        // Images
         const origImg    = document.getElementById('modal-orig-img');
         const origEmpty  = document.getElementById('modal-orig-empty');
         const origDl     = document.getElementById('modal-orig-dl');
@@ -307,13 +322,8 @@
             noImages.style.display      = 'block';
         }
 
-        // Form action
         document.getElementById('reviewForm').action = d.action;
-
-        // Clear previous notes
         document.getElementById('modal-notes').value = '';
-
-        // Show modal
         document.getElementById('reviewModal').classList.add('open');
     });
 
@@ -321,14 +331,40 @@
         document.getElementById('reviewModal').classList.remove('open');
     }
 
-    // Close on backdrop click
     document.getElementById('reviewModal').addEventListener('click', function(e) {
         if (e.target === this) closeReviewModal();
     });
 
-    // Close on Escape
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') closeReviewModal();
+    });
+
+    // ── Review form — fetch submit ──
+    document.getElementById('reviewForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const form = this;
+        const actionUrl = form.action;
+        const clickedBtn = e.submitter;
+        const decision = clickedBtn ? clickedBtn.value : null;
+        const notes = document.getElementById('modal-notes').value;
+
+        form.querySelectorAll('button').forEach(b => b.disabled = true);
+
+        fetch(actionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ decision: decision, notes: notes })
+        })
+        .then(() => {
+            closeReviewModal();
+            showToast('Review submitted successfully.', 'success');
+            setTimeout(() => { window.location.reload(); }, 1500);
+        })
+        .catch(() => {
+            showToast('Failed to submit review. Please try again.', 'danger');
+            form.querySelectorAll('button').forEach(b => b.disabled = false);
+        });
     });
 </script>
 {% endblock %}
