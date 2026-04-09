@@ -383,6 +383,7 @@ def comparison():
 def predict():
     form = UploadForm()
     result = None
+    max_prob = None
     selected_model = "resnet50"
 
     if form.validate_on_submit():
@@ -396,6 +397,7 @@ def predict():
                 file.save(upload_path)
                 selected_model = request.form.get("model", "resnet50")
                 result = predict_stroke_risk(upload_path, model_name=selected_model)
+                max_prob = max(result["probabilities"].values()) if result else None
 
                 if result:
                     pred_ref = db.collection("predictions").add({
@@ -426,7 +428,7 @@ def predict():
         else:
             flash('Invalid file type. Please upload a .jpg or .png image.', 'warning')
 
-    return render_template('predict.html', form=form, result=result, selected_model=selected_model)
+    return render_template('predict.html', form=form, result=result, selected_model=selected_model, max_prob=max_prob)
 
 
 # -----------------------------
