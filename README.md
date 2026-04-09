@@ -72,7 +72,7 @@ NeuroScan is a Flask + Firebase web application that detects ischemic stroke fro
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/DancinggDogg/neuroscan.git
+git clone https://github.com/DancingDogg/neuroscan.git
 cd neuroscan
 ```
 
