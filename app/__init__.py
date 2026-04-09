@@ -31,8 +31,10 @@ def create_app(secret_key):
         'default-src': ["'self'"],
         'script-src': [
             "'self'",
-            "'unsafe-inline'",          # needed for inline <script> blocks
-            "https://www.gstatic.com",  # Firebase JS SDK
+            "'unsafe-inline'",
+            "https://www.gstatic.com",
+            "https://apis.google.com",       # ← add this
+            "https://accounts.google.com",   # ← add this
             "https://code.jquery.com",
             "https://cdn.datatables.net",
             "https://cdn.jsdelivr.net",
@@ -41,10 +43,11 @@ def create_app(secret_key):
         ],
         'style-src': [
             "'self'",
-            "'unsafe-inline'",          # needed for inline styles
+            "'unsafe-inline'",
             "https://fonts.googleapis.com",
             "https://cdn.datatables.net",
             "https://cdnjs.cloudflare.com",
+            "https://accounts.google.com",   # ← add this
         ],
         'font-src': [
             "'self'",
@@ -52,14 +55,21 @@ def create_app(secret_key):
         ],
         'img-src': [
             "'self'",
-            "data:",                    # base64 preview images
+            "data:",
+            "https://*.google.com",          # ← add this
+            "https://*.googleapis.com",      # ← add this
         ],
         'connect-src': [
             "'self'",
-            "https://*.googleapis.com", # Firestore/Firebase API calls
+            "https://*.googleapis.com",
             "https://*.firebaseio.com",
+            "https://apis.google.com",       # ← add this
+            "https://accounts.google.com",   # ← add this
         ],
-        'frame-src': ["'none'"],
+        'frame-src': [
+            "https://accounts.google.com",   # ← change from 'none'
+            "https://*.firebaseapp.com",     # ← add this
+        ],
         'object-src': ["'none'"],
     }
 
