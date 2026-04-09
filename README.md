@@ -20,41 +20,47 @@ A Final Year Project developed at **Universiti Tunku Abdul Rahman (UTAR)** under
 
 ## Overview
 
-NeuroScan is a Flask + Firebase web application that detects ischemic stroke from brain MRI scans using an ensemble of six deep learning models, with explainable AI visualisations for transparency.
+NeuroScan is a Flask + Firebase web application for ischemic stroke detection from brain MRI scans. It uses an ensemble of six deep learning models with explainable AI visualisations, a three-tier role system (Patient, Doctor, Admin), and a built-in AI medical chatbot.
 
 ## Features
 
 - **6 Deep Learning Models** — ResNet50, ResNet101, DenseNet121, DenseNet169, EfficientNet-B3, Vision Transformer (ViT)
 - **Ensemble Prediction** — Simple averaging, weighted averaging, hard voting, stacking
-- **Explainable AI** — Grad-CAM (CNNs) and Attention Rollout (ViT)
-- **Role-Based Access** — Patient, Doctor, Admin
-- **Doctor Review Workflow** — Doctors can agree or disagree with AI predictions
-- **AI Chatbot** — ILMU, powered by Claude Haiku, for stroke education
+- **Explainable AI** — Grad-CAM heatmaps (CNNs) and Attention Rollout (ViT)
+- **Role-Based Access Control** — Patient, Doctor, Admin with enforced route protection
+- **Doctor Review Workflow** — Doctors review AI predictions and submit clinical decisions
+- **Email Notifications** — Patients notified via email when doctor submits a review
+- **In-App Notifications** — Real-time notification bell for patients
+- **AI Chatbot (ILMU)** — Powered by Claude Haiku for stroke education and system guidance
 - **Google OAuth** — Sign in / sign up with Google
-- **PDF Export** — Patients can export prediction history as a PDF report
-- **Security** — Flask-Talisman CSP, rate limiting, magic byte validation, audit logging
+- **PDF Export** — Patients export full prediction history as a formatted PDF report
+- **Audit Logging** — All system actions logged to Firestore
+- **Security** — Flask-Talisman CSP, rate limiting, magic byte file validation, HttpOnly cookies, session timeout
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Backend | Flask, Python |
-| Frontend | Jinja2, Vanilla JS |
+|-------|------------|
+| Backend | Flask, Python 3.11 |
+| Frontend | Jinja2, Vanilla JS, CSS |
 | Database | Firebase Firestore |
 | Auth | Firebase Authentication (Email + Google OAuth) |
 | ML | PyTorch, timm, HuggingFace Transformers |
 | XAI | Grad-CAM, Attention Rollout |
 | AI Chatbot | Anthropic Claude Haiku |
-| Security | Flask-Talisman, Flask-Limiter, Flask-Login |
+| Email | Resend API |
+| Security | Flask-Talisman, Flask-Limiter, Flask-Login, Flask-Bcrypt |
 | Deployment | Docker, Hugging Face Spaces |
 
 ## Live Demo
 
 👉 **https://dancinggdogg-neuroscan.hf.space**
 
-> Note: First load may take 5–10 minutes as model weights are downloaded on cold start.
+> Note: First load may take 5–10 minutes as model weights (~697 MB) are downloaded on cold start.
 
 ## Model Performance
+
+Evaluated on a held-out test set of 34 MRI scans from Hospital Pengajar UPM (HPUPM).
 
 | Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
 |-------|----------|-----------|--------|----------|---------|
@@ -66,9 +72,7 @@ NeuroScan is a Flask + Firebase web application that detects ischemic stroke fro
 | Vision Transformer | 0.8824 | 0.8873 | 0.8824 | 0.8807 | 1.000 |
 | **Ensemble (Best)** | **1.000** | **1.000** | **1.000** | **1.000** | **1.000** |
 
-*Evaluated on a held-out test set of 34 MRI scans from Hospital Pengajar UPM (HPUPM).*
-
-## Setup
+## Local Setup
 
 ### 1. Clone the repository
 ```bash
@@ -91,7 +95,20 @@ pip install -r requirements.txt
 ### 4. Configure environment variables
 ```bash
 cp .env.example .env
-# Edit .env with your Firebase and API credentials
+# Edit .env with your credentials
+```
+
+Required variables:
+```
+SECRET_KEY=
+FLASK_DEBUG=true
+FLASK_ENV=development
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+ANTHROPIC_API_KEY=
+RESEND_API_KEY=
+RESEND_TO_EMAIL=
 ```
 
 ### 5. Add Firebase service account key
@@ -116,14 +133,14 @@ Brain Stroke Detection/
 ├── app/
 │   ├── ml/                  # ML models and XAI
 │   │   ├── model_files/     # .pth weights (not in repo)
-│   │   ├── model_loader.py
-│   │   ├── gradcam.py
-│   │   └── vit_rollout.py
+│   │   ├── model_loader.py  # Model loading + ensemble inference
+│   │   ├── gradcam.py       # Grad-CAM implementation
+│   │   └── vit_rollout.py   # ViT Attention Rollout
 │   ├── static/              # CSS, JS, favicon
 │   ├── templates/           # Jinja2 HTML templates
-│   ├── routes.py
-│   ├── models.py
-│   └── __init__.py
+│   ├── routes.py            # All Flask routes
+│   ├── models.py            # User model
+│   └── __init__.py          # App factory + extensions
 ├── Dockerfile
 ├── .env.example
 ├── requirements.txt
@@ -132,10 +149,13 @@ Brain Stroke Detection/
 
 ## Known Limitations
 
-- Email notifications require unrestricted outbound SMTP — blocked on Hugging Face free tier
-- GradCAM images are ephemeral on HF free tier (lost on container restart)
-- Cold start takes 5–10 minutes to download model weights (~697 MB)
-- Predictions run on CPU only on free tier — slower than local GPU inference
+| Limitation | Details |
+|------------|---------|
+| Email delivery on HF | Outbound SMTP is blocked on Hugging Face free tier. Email notifications are delivered via Resend API. On the free tier without a verified custom domain, emails are routed to the system administrator for demonstration purposes. Direct patient delivery works fully in local development. |
+| Ephemeral GradCAM images | MRI heatmap images are lost on container restart. Persistent storage requires Hugging Face Pro or Firebase Storage. |
+| Cold start delay | Model weights (~697 MB) are re-downloaded on every container restart — takes 5–10 minutes. |
+| CPU-only inference | Free tier has no GPU. Predictions are slower than local inference. |
+| CSRF disabled | CSRF protection is disabled due to incompatibility with Firebase JS SDK authentication flow. Risk is mitigated by `SameSite=Lax` cookie policy and Firebase ID token verification. |
 
 ## Developer
 
