@@ -223,9 +223,7 @@ def predict_stroke_risk(image_path, model_name="resnet50"):
             cam_filename = f"gradcam_{model_name}_{uuid.uuid4().hex}.jpg"
             cam_path = os.path.join("app", "static", "uploads", cam_filename)
             os.makedirs(os.path.dirname(cam_path), exist_ok=True)
-            print(f"[DEBUG] Saving GradCAM to: {os.path.abspath(cam_path)}")
             cv2.imwrite(cam_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
-            print(f"[DEBUG] File exists after save: {os.path.exists(cam_path)}")
             gradcam_url = f"/static/uploads/{cam_filename}"
 
             orig_filename = f"orig_{model_name}_{uuid.uuid4().hex}.jpg"
