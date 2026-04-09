@@ -31,3 +31,6 @@ anthropic>=0.40.0
 
 # PDF medical report export
 reportlab>=4.0.0
+
+# Email notification
+resend>=2.0.0

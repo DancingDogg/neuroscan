@@ -11,9 +11,6 @@ from .models import User
 from .ml.model_loader import predict_stroke_risk
 from firebase_admin import auth, storage, firestore, exceptions
 import anthropic as anthropic_sdk
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 bp = Blueprint('routes', __name__)
 db = firestore.client()
@@ -51,36 +48,34 @@ def log_event(user_id, role, action, details=None):
 def send_email_notification(to_email, patient_name, decision, notes, model_used):
     """Send email to patient when doctor reviews their scan."""
     print(f"[DEBUG] send_email_notification called for {to_email}")
-    mail_email    = os.environ.get('MAIL_EMAIL')
-    mail_password = os.environ.get('MAIL_PASSWORD')
- 
-    if not mail_email or not mail_password:
-        print("[WARN] Email not configured — skipping email notification")
+
+    api_key = os.environ.get('RESEND_API_KEY')
+    if not api_key:
+        print("[WARN] RESEND_API_KEY not configured — skipping email notification")
         return
- 
+
     try:
+        import resend
+        resend.api_key = api_key
+
         decision_text  = "agrees with" if decision == "agree" else "disagrees with"
         decision_emoji = "✔" if decision == "agree" else "✖"
-        subject = f"NeuroScan — Your MRI scan has been reviewed"
- 
+
         html = f"""
         <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f8fafc;padding:24px;border-radius:12px;">
             <div style="background:linear-gradient(135deg,#0d3f7a,#1558a8);border-radius:10px;padding:24px;text-align:center;margin-bottom:24px;">
                 <h1 style="color:#fff;font-size:22px;margin:0;">🧠 NeuroScan</h1>
                 <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">AI-Powered Stroke Detection</p>
             </div>
- 
             <div style="background:#fff;border-radius:10px;padding:24px;border:1px solid #e5e7eb;">
                 <h2 style="color:#111827;font-size:17px;margin:0 0 8px;">Your scan has been reviewed</h2>
                 <p style="color:#6b7280;font-size:14px;margin:0 0 20px;">
                     Hello {patient_name or to_email}, a doctor has reviewed your MRI scan on NeuroScan.
                 </p>
- 
                 <div style="background:#f0f4ff;border-radius:8px;padding:16px;margin-bottom:20px;border-left:4px solid #1558a8;">
                     <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Model Used</div>
                     <div style="font-weight:600;color:#111827;font-size:15px;">{(model_used or 'N/A').upper()}</div>
                 </div>
- 
                 <div style="background:{'#f0fdf4' if decision == 'agree' else '#fef2f2'};border-radius:8px;padding:16px;margin-bottom:20px;border-left:4px solid {'#0f7a3e' if decision == 'agree' else '#b91c1c'};">
                     <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Doctor's Decision</div>
                     <div style="font-weight:700;color:{'#0f7a3e' if decision == 'agree' else '#b91c1c'};font-size:15px;">
@@ -88,34 +83,29 @@ def send_email_notification(to_email, patient_name, decision, notes, model_used)
                     </div>
                     {f'<div style="margin-top:8px;font-size:13px;color:#374151;font-style:italic;">"{notes}"</div>' if notes else ''}
                 </div>
- 
                 <p style="font-size:12px;color:#9ca3af;margin:0;">
                     ⚠ This is an AI-assisted research tool. Please consult a qualified medical professional for clinical advice.
                 </p>
             </div>
- 
             <div style="text-align:center;margin-top:16px;">
                 <p style="font-size:11px;color:#9ca3af;">NeuroScan FYP · Universiti Tunku Abdul Rahman</p>
             </div>
         </div>
         """
- 
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From']    = f"NeuroScan <{mail_email}>"
-        msg['To']      = to_email
-        msg.attach(MIMEText(html, 'html'))
- 
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(mail_email, mail_password)
-            server.sendmail(mail_email, to_email, msg.as_string())
- 
+
+        params = {
+            "from": "NeuroScan <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": "NeuroScan — Your MRI scan has been reviewed",
+            "html": html
+        }
+        resend.Emails.send(params)
         print(f"[INFO] Email notification sent to {to_email}")
- 
+
     except Exception as e:
         print(f"[WARN] Email notification failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 def role_required(*roles):
     def decorator(f):
