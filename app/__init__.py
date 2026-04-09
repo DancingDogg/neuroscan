@@ -3,6 +3,7 @@ from flask import Flask
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_bcrypt import Bcrypt
+from flask_talisman import Talisman
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -10,23 +11,73 @@ csrf = CSRFProtect()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 login_manager.login_view = 'routes.login'
-login_manager.login_message = ""          # suppress default "Please log in" flash
+login_manager.login_message = ""
 login_manager.login_message_category = 'info'
 
 def create_app(secret_key):
     app = Flask(__name__)
     app.config['SECRET_KEY'] = secret_key
 
-    # Session timeout — auto logout after 30 minutes of inactivity
     from datetime import timedelta
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
     app.config['SESSION_REFRESH_EACH_REQUEST'] = True
-
     app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
     app.config['MODELS'] = {}
-
     app.config['WTF_CSRF_ENABLED'] = False
+
+    # ── Security headers via Talisman ──
+    csp = {
+        'default-src': ["'self'"],
+        'script-src': [
+            "'self'",
+            "'unsafe-inline'",          # needed for inline <script> blocks
+            "https://www.gstatic.com",  # Firebase JS SDK
+            "https://code.jquery.com",
+            "https://cdn.datatables.net",
+            "https://cdn.jsdelivr.net",
+            "https://cdnjs.cloudflare.com",
+            "https://fonts.googleapis.com",
+        ],
+        'style-src': [
+            "'self'",
+            "'unsafe-inline'",          # needed for inline styles
+            "https://fonts.googleapis.com",
+            "https://cdn.datatables.net",
+            "https://cdnjs.cloudflare.com",
+        ],
+        'font-src': [
+            "'self'",
+            "https://fonts.gstatic.com",
+        ],
+        'img-src': [
+            "'self'",
+            "data:",                    # base64 preview images
+        ],
+        'connect-src': [
+            "'self'",
+            "https://*.googleapis.com", # Firestore/Firebase API calls
+            "https://*.firebaseio.com",
+        ],
+        'frame-src': ["'none'"],
+        'object-src': ["'none'"],
+    }
+
+    Talisman(
+        app,
+        force_https=False,              # set True on Railway/Render (they handle HTTPS)
+        strict_transport_security=False, # same — let the host handle HSTS
+        session_cookie_secure=False,    # set True in production
+        session_cookie_http_only=True,  # prevent JS access to session cookie
+        content_security_policy=csp,
+        referrer_policy='strict-origin-when-cross-origin',
+        feature_policy={
+            'geolocation': "'none'",
+            'camera': "'none'",
+            'microphone': "'none'",
+        }
+    )
+
     bcrypt.init_app(app)
     login_manager.init_app(app)
 
@@ -55,7 +106,6 @@ def create_app(secret_key):
     def check_csrf():
         return None
 
-    # Initialize Firebase only once
     if not firebase_admin._apps:
         cred = credentials.Certificate('firebase-key.json')
         firebase_admin.initialize_app(cred, {
@@ -63,14 +113,11 @@ def create_app(secret_key):
         })
         print("Firebase Admin SDK initialized successfully.")
 
-    # Firestore client
     db = firestore.client()
 
-    # Rate Limiter
     from .routes import limiter
     limiter.init_app(app)
 
-    # Blueprints
     from . import models, routes
     app.register_blueprint(routes.bp)
 
