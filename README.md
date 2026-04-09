@@ -11,7 +11,7 @@ pinned: false
 <p align="center">Ischemic Stroke Detection with Ensemble Deep Learning</p>
 <p align="center">
   <a href="https://dancinggdogg-neuroscan.hf.space"><strong>🚀 Live Demo</strong></a> ·
-  <a href="https://github.com/DancinggDogg/neuroscan"><strong>GitHub</strong></a>
+  <a href="https://github.com/DancingDogg/neuroscan"><strong>GitHub</strong></a>
 </p>
 
 ---
