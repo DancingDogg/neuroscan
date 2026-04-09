@@ -110,7 +110,6 @@ def create_app(secret_key):
     if not firebase_admin._apps:
         import json
         firebase_key_json = os.environ.get('FIREBASE_KEY_JSON')
-        print(f"[DEBUG] FIREBASE_KEY_JSON present: {bool(firebase_key_json)}")
         if firebase_key_json:
             cred = credentials.Certificate(json.loads(firebase_key_json))
         else:
