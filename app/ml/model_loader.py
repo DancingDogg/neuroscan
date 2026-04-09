@@ -11,6 +11,7 @@ import cv2, uuid
 import numpy as np
 import joblib
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from huggingface_hub import hf_hub_download
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -39,6 +40,30 @@ VIT_MODEL_NAME = "google/vit-base-patch16-224-in21k"
 print("[INFO] Loading ViT processor at startup...")
 VIT_PROCESSOR = AutoImageProcessor.from_pretrained(VIT_MODEL_NAME, use_fast=True)
 print("[INFO] ViT processor ready.")
+
+def ensure_models_downloaded():
+    model_files = [
+        'densenet121_best.pth',
+        'densenet169_best.pth',
+        'efficientnetb3_best.pth',
+        'ensemble_best.pth',
+        'resnet50_best.pth',
+        'resnet101_best.pth',
+        'vit_best.pth',
+    ]
+    for filename in model_files:
+        dest = os.path.join(MODEL_DIR, filename)
+        if not os.path.exists(dest):
+            print(f'[INFO] Downloading {filename} from HF Space...')
+            hf_hub_download(
+                repo_id='DancinggDogg/NeuroScan',
+                filename=f'app/ml/model_files/{filename}',
+                repo_type='space',
+                local_dir='.',
+            )
+            print(f'[INFO] {filename} ready.')
+
+ensure_models_downloaded()
 
 # -----------------------------
 # Model Loader
