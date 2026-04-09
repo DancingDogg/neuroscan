@@ -189,8 +189,8 @@
                                   placeholder="Document your clinical observations…"></textarea>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-                        <button type="submit" name="decision" value="agree" class="btn btn-success btn-lg">✔ Agree with AI</button>
-                        <button type="submit" name="decision" value="disagree" class="btn btn-danger btn-lg">✖ Disagree</button>
+                        <button type="button" class="btn btn-success btn-lg" onclick="submitReview('agree', this)">✔ Agree with AI</button>
+                        <button type="button" class="btn btn-danger btn-lg" onclick="submitReview('disagree', this)">✖ Disagree</button>
                     </div>
                 </form>
             </div>
@@ -222,8 +222,7 @@
             border:1px solid ${c.border};
             box-shadow:var(--shadow-lg);
             font-size:0.875rem; font-family:var(--font-display);
-            font-weight:500;
-            min-width:240px; max-width:340px;
+            font-weight:500; min-width:240px; max-width:340px;
         `;
         toast.innerHTML = `<span style="font-size:1rem;flex-shrink:0;">${icons[type]||'ℹ'}</span><span>${msg}</span>`;
         document.body.appendChild(toast);
@@ -337,45 +336,22 @@
         if (e.key === 'Escape') closeReviewModal();
     });
 
-    // ── Review buttons — track which was clicked ──
-    let pendingDecision = null;
-
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('#reviewForm button[type="submit"]');
-        if (btn) pendingDecision = btn.value;
-    });
-
-    // ── Review form — fetch submit ──
-    document.getElementById('reviewForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const form      = this;
+    // ── Review submit ──
+    function submitReview(decision, btn) {
+        const form = document.getElementById('reviewForm');
         const actionUrl = form.action;
-        const notes     = document.getElementById('modal-notes').value;
-        const decision  = pendingDecision;
+        const notes = document.getElementById('modal-notes').value;
 
-        if (!decision || !['agree', 'disagree'].includes(decision)) {
-            showToast('Please click Agree or Disagree.', 'warning');
-            return;
-        }
-
+        btn.innerHTML = '⏳ Submitting…';
         form.querySelectorAll('button').forEach(b => b.disabled = true);
 
-        fetch(actionUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ decision: decision, notes: notes })
-        })
-        .then(() => {
-            pendingDecision = null;
-            closeReviewModal();
-            showToast('Review submitted successfully.', 'success');
-            setTimeout(() => { window.location.reload(); }, 1500);
-        })
-        .catch(() => {
-            showToast('Failed to submit review. Please try again.', 'danger');
-            form.querySelectorAll('button').forEach(b => b.disabled = false);
-        });
-    });
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'decision';
+        input.value = decision;
+        form.appendChild(input);
+
+        form.submit();
+    }
 </script>
 {% endblock %}

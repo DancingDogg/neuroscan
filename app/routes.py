@@ -993,10 +993,12 @@ def review(prediction_id):
                     patient_email = patient_data.get("email")
                     patient_name  = patient_data.get("name")
                     if patient_email:
-                        send_email_notification(
-                            patient_email, patient_name,
-                            decision, notes, model_used
-                        )
+                        import threading
+                        threading.Thread(
+                            target=send_email_notification,
+                            args=(patient_email, patient_name, decision, notes, model_used),
+                            daemon=True
+                        ).start()
     except Exception as e:
         print(f"[WARN] Notification failed: {e}")
  
