@@ -11,6 +11,7 @@ from .models import User
 from .ml.model_loader import predict_stroke_risk
 from firebase_admin import auth, storage, firestore, exceptions
 import anthropic as anthropic_sdk
+from markupsafe import escape as html_escape
 
 bp = Blueprint('routes', __name__)
 db = firestore.client()
@@ -57,6 +58,10 @@ def send_email_notification(to_email, patient_name, decision, notes, model_used)
     try:
         import resend
         resend.api_key = api_key
+
+        # ── Sanitise user-supplied values before injecting into HTML ──
+        notes = str(html_escape(notes)) if notes else ""
+        patient_name = str(html_escape(patient_name)) if patient_name else ""
 
         decision_text  = "agrees with" if decision == "agree" else "disagrees with"
         decision_emoji = "✔" if decision == "agree" else "✖"
@@ -149,6 +154,7 @@ def register():
 # Auth endpoints
 # -----------------------------
 @bp.route('/session_login', methods=['POST'])
+@limiter.limit("5 per minute")
 def session_login():
     if not request.is_json:
         return jsonify({'error': 'Request must be JSON.'}), 400
