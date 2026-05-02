@@ -31,7 +31,7 @@ NeuroScan is a Flask + Firebase web application for ischemic stroke detection fr
 - **Doctor Review Workflow** — Doctors review AI predictions and submit clinical decisions
 - **Email Notifications** — Patients notified via email when doctor submits a review
 - **In-App Notifications** — Real-time notification bell for patients
-- **AI Chatbot (ILMU)** — Powered by Claude Haiku for stroke education and system guidance
+- **AI Chatbot (NeuroScan AI)** — Powered by Claude Haiku for stroke education and system guidance
 - **Google OAuth** — Sign in / sign up with Google
 - **PDF Export** — Patients export full prediction history as a formatted PDF report
 - **Audit Logging** — All system actions logged to Firestore
@@ -66,10 +66,10 @@ Evaluated on a held-out test set of 34 MRI scans from Hospital Pengajar UPM (HPU
 |-------|----------|-----------|--------|----------|---------|
 | ResNet50 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 | ResNet101 | 0.9706 | 0.9722 | 0.9706 | 0.9706 | 0.9827 |
-| DenseNet121 | 0.9118 | 0.9167 | 0.9118 | 0.9118 | 0.9965 |
-| DenseNet169 | 0.9412 | 0.9444 | 0.9412 | 0.9410 | 0.9970 |
+| DenseNet121 | 0.9118 | 0.9250 | 0.9118 | 0.9118 | 0.9965 |
+| DenseNet169 | 0.9412 | 0.9474 | 0.9412 | 0.9410 | 0.9970 |
 | EfficientNet-B3 | 0.9706 | 0.9722 | 0.9706 | 0.9706 | 1.000 |
-| Vision Transformer | 0.8824 | 0.8873 | 0.8824 | 0.8807 | 1.000 |
+| Vision Transformer | 0.8824 | 0.9048 | 0.8824 | 0.8807 | 1.000 |
 | **Ensemble (Best)** | **1.000** | **1.000** | **1.000** | **1.000** | **1.000** |
 
 ## Local Setup
@@ -117,7 +117,7 @@ RESEND_TO_EMAIL=
 
 ### 6. Add model weights
 - Place all `.pth` files in `app/ml/model_files/`
-- Download from: [Google Drive](https://drive.google.com/drive/folders/1xQIKvAHJmykPyx3CiTvG2_-CQEpx4_UW?usp=drive_link)
+- Download from: [Hugging Face Model Repo](https://huggingface.co/DancinggDogg/NeuroScan-models) or [Google Drive](https://drive.google.com/drive/folders/1xQIKvAHJmykPyx3CiTvG2_-CQEpx4_UW?usp=drive_link)
 
 ### 7. Run the application
 ```bash
@@ -160,5 +160,5 @@ Brain Stroke Detection/
 ## Developer
 
 **Lee Ding Kuan**
-UTAR, Faculty of Information and Communication Technology (Kampar) · 2025
+UTAR, Faculty of Information and Communication Technology (Kampar) · 2026
 Supervisor: Puan Nur Lyana Shahfiqa Bt Albashah
